@@ -1,0 +1,31 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&family=Nunito+Sans:wght@500;600;700;800&display=swap");
+@import "./tokens.css";
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--color-text-primary);
+  background: radial-gradient(circle at 20% -10%, #294a20 0%, #081105 55%, #040703 100%);
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}

@@ -1,0 +1,36 @@
+:root {
+  --font-display: "Manrope", "Segoe UI", sans-serif;
+  --font-body: "Nunito Sans", "Segoe UI", sans-serif;
+
+  --color-forest-900: #0a1207;
+  --color-forest-800: #15250f;
+  --color-forest-700: #22381a;
+  --color-mist-100: #f3f5f1;
+  --color-mist-200: #e4e8de;
+  --color-text-primary: #121712;
+  --color-text-muted: #576154;
+  --color-text-inverse: #f8faf6;
+
+  --surface-card: rgba(247, 250, 244, 0.9);
+  --surface-card-border: rgba(255, 255, 255, 0.38);
+  --surface-backdrop: rgba(6, 11, 5, 0.52);
+
+  --shadow-card: 0 28px 68px rgba(0, 0, 0, 0.32);
+  --shadow-soft: 0 10px 24px rgba(7, 12, 5, 0.18);
+
+  --radius-xl: 20px;
+  --radius-pill: 999px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+
+  --duration-fast: 180ms;
+  --duration-base: 260ms;
+  --easing-standard: cubic-bezier(0.2, 0.85, 0.28, 1);
+}
