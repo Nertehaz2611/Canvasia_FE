@@ -66,7 +66,7 @@ type GoogleAuthButtonProps = {
 };
 
 const AUTH_ROUTES = {
-  home: "/home",
+  explore: "/explore",
   login: "/login",
   register: "/register",
 } as const;
@@ -158,8 +158,8 @@ function AuthCard({ mode }: Readonly<AuthCardProps>) {
   const isLogin = mode === "login";
   const isRegister = mode === "register";
 
-  const goToHome = () => {
-    navigate(AUTH_ROUTES.home, { replace: true });
+  const goToExplore = () => {
+    navigate(AUTH_ROUTES.explore, { replace: true });
   };
 
   const goToLogin = () => {
@@ -178,7 +178,7 @@ function AuthCard({ mode }: Readonly<AuthCardProps>) {
     try {
       const authResponse = await login(loginForm);
       saveAuthTokens(authResponse);
-      goToHome();
+      goToExplore();
     } catch (error) {
       setErrorMessage(getErrorMessage(error, "Login failed"));
     } finally {
@@ -216,13 +216,13 @@ function AuthCard({ mode }: Readonly<AuthCardProps>) {
     try {
       const authResponse = await loginWithGoogle({ idToken: credential });
       saveAuthTokens(authResponse);
-      goToHome();
+      goToExplore();
     } catch (error) {
       setErrorMessage(getErrorMessage(error, "Google login failed"));
     } finally {
       setIsSubmitting(false);
     }
-  }, [goToHome]);
+  }, [goToExplore]);
 
   const initializeGoogleIdentity = useCallback(() => {
     if (!googleClientId) {

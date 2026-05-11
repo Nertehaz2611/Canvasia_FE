@@ -21,6 +21,10 @@ export type GoogleLoginRequest = {
   idToken: string;
 };
 
+export type RefreshTokenRequest = {
+  refreshToken: string;
+};
+
 export type ApiErrorResponse = {
   code: string;
   message: string;

@@ -1,0 +1,126 @@
+export type MediaItem = {
+  mediaId: string;
+  orderIndex: number | null;
+  originalPublicId: string;
+  originalUrl: string;
+};
+
+export type Post = {
+  postId: string;
+  userId: string;
+  displayName: string;
+  username: string;
+  caption: string;
+  createdAt: string;
+  media: MediaItem[];
+  tags: string[];
+  commentCount: number;
+  likeCount: number;
+  likedByMe: boolean;
+};
+
+export type CursorPostFeedResponse = {
+  items: Post[];
+  limit: number;
+  nextCursor: string | null;
+  hasNext: boolean;
+};
+
+export type ThumbnailItem = {
+  mediaId: string;
+  postId: string;
+  userId: string;
+  orderIndex: number | null;
+  thumbnailPublicId: string;
+  thumbnailUrl: string;
+};
+
+export type CursorThumbnailFeedResponse = {
+  items: ThumbnailItem[];
+  limit: number;
+  nextCursor: string | null;
+  hasNext: boolean;
+};
+
+export type PostFeedResponse = {
+  items: Post[];
+  page: number;
+  size: number;
+  hasNext: boolean;
+};
+
+export type PostLikeResponse = {
+  postId: string;
+  likeCount: number;
+  likedByMe: boolean;
+};
+
+export type Comment = {
+  commentId: string;
+  postId: string;
+  parentId: string | null;
+  rootId: string | null;
+  userId: string;
+  displayName: string;
+  username: string;
+  content: string;
+  createdAt: string;
+  likeCount: number;
+  likedByMe: boolean;
+  replyCount: number;
+  replies: Comment[];
+};
+
+export type CommentFeedResponse = {
+  items: Comment[];
+  page: number;
+  size: number;
+  hasNext: boolean;
+  maxDepth: number;
+};
+
+export type LatestDiscussionItem = {
+  commentId: string;
+  postId: string;
+  userId: string;
+  displayName: string;
+  username: string;
+  content: string;
+  createdAt: string;
+};
+
+export type LatestDiscussionFeedResponse = {
+  items: LatestDiscussionItem[];
+};
+
+export type LatestHashtagResponse = {
+  items: string[];
+};
+
+export type Profile = {
+  userId: string;
+  username: string;
+  email: string;
+  displayName: string;
+  bio: string;
+  avatarPublicId: string | null;
+  avatarUrl: string | null;
+  website: string;
+};
+
+export type AvatarUploadResponse = {
+  avatarPublicId: string;
+  avatarUrl: string;
+};
+
+export type CreatePostInput = {
+  caption: string;
+  tags: string[];
+  mediaFiles: File[];
+};
+
+export type ProfileSetupInput = {
+  displayName: string;
+  bio: string;
+  website: string;
+};
