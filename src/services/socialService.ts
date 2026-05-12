@@ -10,6 +10,7 @@ import type {
   PostFeedResponse,
   PostLikeResponse,
   Profile,
+  AccountSettingsInput,
   ProfileSetupInput,
 } from "../types/social";
 
@@ -102,6 +103,11 @@ export async function getMyProfile(): Promise<Profile> {
 
 export async function setupProfile(input: ProfileSetupInput): Promise<Profile> {
   const response = await api.put<Profile>("/profile/setup", input);
+  return response.data;
+}
+
+export async function updateAccountSettings(input: AccountSettingsInput): Promise<Profile> {
+  const response = await api.put<Profile>("/profile/account", input);
   return response.data;
 }
 

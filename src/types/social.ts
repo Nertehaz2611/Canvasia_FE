@@ -10,6 +10,7 @@ export type Post = {
   userId: string;
   displayName: string;
   username: string;
+  avatarUrl: string | null;
   caption: string;
   createdAt: string;
   media: MediaItem[];
@@ -63,6 +64,7 @@ export type Comment = {
   userId: string;
   displayName: string;
   username: string;
+  avatarUrl: string | null;
   content: string;
   createdAt: string;
   likeCount: number;
@@ -85,6 +87,7 @@ export type LatestDiscussionItem = {
   userId: string;
   displayName: string;
   username: string;
+  avatarUrl: string | null;
   content: string;
   createdAt: string;
 };
@@ -121,6 +124,13 @@ export type CreatePostInput = {
 
 export type ProfileSetupInput = {
   displayName: string;
+  bio: string;
+  website: string;
+};
+
+export type AccountSettingsInput = {
+  displayName: string;
+  email: string;
   bio: string;
   website: string;
 };

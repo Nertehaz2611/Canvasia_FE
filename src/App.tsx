@@ -6,6 +6,7 @@ import HomePage from "./pages/HomePage";
 import ExplorePage from "./pages/ExplorePage";
 import PostsPage from "./pages/PostsPage";
 import PostDetailPage from "./pages/PostDetailPage";
+import ProfilePage from "./pages/ProfilePage";
 import { hasAccessToken } from "./utils/tokenStorage";
 
 type RequireAuthProps = {
@@ -46,6 +47,7 @@ function App() {
         <Route path="/explore" element={<ExplorePage />} />
         <Route path="/posts" element={<PostsPage />} />
         <Route path="/posts/:postId" element={<PostDetailPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
       </Route>
     </Routes>
   );

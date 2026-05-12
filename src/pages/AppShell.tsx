@@ -72,6 +72,11 @@ function AppShell() {
     navigate("/login", { replace: true });
   };
 
+  const goToProfileSettings = () => {
+    setIsUserMenuOpen(false);
+    navigate("/profile");
+  };
+
   const displayName = profile?.displayName || profile?.username || "User";
   const initial = displayName.charAt(0).toUpperCase();
 
@@ -104,14 +109,14 @@ function AppShell() {
         </div>
 
         <div className="topbar-right">
-          <a href="#" className="topbar-link" aria-label="Messages">
+          <button type="button" className="topbar-link" aria-label="Messages">
             <MailOutlineRoundedIcon fontSize="small" />
             <span>Messages</span>
-          </a>
-          <a href="#" className="topbar-link" aria-label="Notifications">
+          </button>
+          <button type="button" className="topbar-link" aria-label="Notifications">
             <NotificationsNoneRoundedIcon fontSize="small" />
             <span>Notifications</span>
-          </a>
+          </button>
           <div className="topbar-user" ref={userMenuRef}>
             <button
               type="button"
@@ -134,7 +139,7 @@ function AppShell() {
                   <strong>{displayName}</strong>
                   <span>@{profile?.username || "guest"}</span>
                 </div>
-                <button type="button" role="menuitem" onClick={() => setIsUserMenuOpen(false)}>
+                <button type="button" role="menuitem" onClick={goToProfileSettings}>
                   Account settings
                 </button>
                 <button type="button" role="menuitem" onClick={logout}>

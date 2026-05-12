@@ -84,7 +84,13 @@ function PostsPage() {
             {posts.map((post) => (
               <article key={post.postId} className="post-card">
                 <div className="post-card__head">
-                  <div className="post-card__author-avatar">{(post.displayName || "U").charAt(0)}</div>
+                  <div className="post-card__author-avatar">
+                    {post.avatarUrl ? (
+                      <img src={post.avatarUrl} alt={post.displayName || "User"} />
+                    ) : (
+                      <span>{(post.displayName || "U").charAt(0)}</span>
+                    )}
+                  </div>
                   <div>
                     <h3>{post.displayName}</h3>
                     <p>@{post.username} • {formatDate(post.createdAt)}</p>
@@ -151,7 +157,13 @@ function PostsPage() {
             <ul className="posts-sidebar__list">
               {latestDiscussions.map((item) => (
                 <li key={item.commentId}>
-                  <div className="posts-sidebar__avatar">{(item.displayName || "U").charAt(0)}</div>
+                  <div className="posts-sidebar__avatar">
+                    {item.avatarUrl ? (
+                      <img src={item.avatarUrl} alt={item.displayName || "User"} />
+                    ) : (
+                      <span>{(item.displayName || "U").charAt(0)}</span>
+                    )}
+                  </div>
                   <div className="posts-sidebar__content">
                     <p className="posts-sidebar__title">{item.displayName}</p>
                     <p className="posts-sidebar__subtitle">{item.content}</p>
