@@ -2,6 +2,7 @@ import api from "./api";
 import type {
   AvatarUploadResponse,
   CommentFeedResponse,
+  CommentLikeResponse,
   CursorPostFeedResponse,
   CursorThumbnailFeedResponse,
   CreatePostInput,
@@ -94,6 +95,20 @@ export async function getLatestHashtags(limit = 5): Promise<LatestHashtagRespons
 
 export async function createComment(postId: string, content: string): Promise<void> {
   await api.post(`/comments/${postId}`, { content: content.trim() });
+}
+
+export async function replyComment(commentId: string, content: string): Promise<void> {
+  await api.post(`/comments/${commentId}/replies`, { content: content.trim() });
+}
+
+export async function likeComment(commentId: string): Promise<CommentLikeResponse> {
+  const response = await api.post<CommentLikeResponse>(`/comments/${commentId}/likes`);
+  return response.data;
+}
+
+export async function unlikeComment(commentId: string): Promise<CommentLikeResponse> {
+  const response = await api.delete<CommentLikeResponse>(`/comments/${commentId}/likes`);
+  return response.data;
 }
 
 export async function getMyProfile(): Promise<Profile> {

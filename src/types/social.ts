@@ -73,6 +73,12 @@ export type Comment = {
   replies: Comment[];
 };
 
+export type CommentLikeResponse = {
+  commentId: string;
+  likeCount: number;
+  likedByMe: boolean;
+};
+
 export type CommentFeedResponse = {
   items: Comment[];
   page: number;

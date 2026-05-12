@@ -2,7 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import FavoriteBorderRoundedIcon from "@mui/icons-material/FavoriteBorderRounded";
 import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
-import { createComment, getComments, getDiscoverPosts, likePost, unlikePost } from "../services/socialService";
+import {
+  createComment,
+  getComments,
+  getDiscoverPosts,
+  likeComment,
+  likePost,
+  replyComment,
+  unlikeComment,
+  unlikePost,
+} from "../services/socialService";
 import { getErrorMessage } from "../utils/errorMessage";
 import type { Comment, MediaItem, Post } from "../types/social";
 
@@ -15,6 +24,7 @@ type PostDetailState = {
   thumbnailUrl?: string;
   mediaId?: string;
   initialMediaIndex?: number;
+  commentId?: string;
 };
 
 type PostDetailModel = {
@@ -26,6 +36,10 @@ type PostDetailModel = {
   commentsError: string | null;
   commentText: string;
   setCommentText: (value: string) => void;
+  replyDrafts: Record<string, string>;
+  activeReplyId: string | null;
+  toggleReplyBox: (commentId: string) => void;
+  updateReplyDraft: (commentId: string, value: string) => void;
   activeMedia: MediaItem | undefined;
   hasGallery: boolean;
   activeIndex: number;
@@ -36,10 +50,34 @@ type PostDetailModel = {
   caption: string;
   tags: string[];
   toggleLike: () => Promise<void>;
+  toggleCommentLike: (commentId: string, likedByMe: boolean) => Promise<void>;
   submitComment: () => Promise<void>;
+  submitReply: (commentId: string) => Promise<void>;
   goPrev: () => void;
   goNext: () => void;
 };
+
+function updateCommentLikeState(
+  comments: Comment[],
+  commentId: string,
+  likeCount: number,
+  likedByMe: boolean
+): Comment[] {
+  return comments.map((comment) => {
+    if (comment.commentId === commentId) {
+      return { ...comment, likeCount, likedByMe };
+    }
+
+    if (comment.replies.length === 0) {
+      return comment;
+    }
+
+    return {
+      ...comment,
+      replies: updateCommentLikeState(comment.replies, commentId, likeCount, likedByMe),
+    };
+  });
+}
 
 function resolveInitialMediaIndex(state: PostDetailState | null, postData: Post | null): number {
   if (typeof state?.initialMediaIndex === "number") {
@@ -62,6 +100,8 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
 
   useEffect(() => {
     setPostData(state?.post ?? null);
@@ -69,6 +109,8 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
     setCommentItems([]);
     setCommentsError(null);
     setCommentText("");
+    setReplyDrafts({});
+    setActiveReplyId(null);
   }, [postId, state?.post]);
 
   useEffect(() => {
@@ -129,38 +171,27 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
     };
   }, [postData, postId]);
 
-  useEffect(() => {
+  const refreshComments = async () => {
     if (!postData?.postId) {
       return;
     }
 
-    let isMounted = true;
+    setCommentsLoading(true);
+    setCommentsError(null);
 
-    const loadComments = async () => {
-      setCommentsLoading(true);
-      setCommentsError(null);
+    try {
+      const response = await getComments(postData.postId, 0, 20, 2);
+      setCommentItems(response.items);
+    } catch (loadError) {
+      setCommentsError(getErrorMessage(loadError, "Cannot load comments"));
+    } finally {
+      setCommentsLoading(false);
+    }
+  };
 
-      try {
-        const response = await getComments(postData.postId, 0, 20, 2);
-        if (isMounted) {
-          setCommentItems(response.items);
-        }
-      } catch (loadError) {
-        if (isMounted) {
-          setCommentsError(getErrorMessage(loadError, "Cannot load comments"));
-        }
-      } finally {
-        if (isMounted) {
-          setCommentsLoading(false);
-        }
-      }
-    };
-
-    void loadComments();
-
-    return () => {
-      isMounted = false;
-    };
+  useEffect(() => {
+    void refreshComments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [postData?.postId]);
 
   const mediaItems = useMemo(() => (
@@ -236,11 +267,49 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
 
     try {
       await createComment(postData.postId, content);
-      const response = await getComments(postData.postId, 0, 20, 2);
-      setCommentItems(response.items);
       setCommentText("");
+      await refreshComments();
     } catch {
       setError("Cannot post comment right now.");
+    }
+  };
+
+  const toggleCommentLike = async (commentId: string, likedByMe: boolean) => {
+    try {
+      const response = likedByMe
+        ? await unlikeComment(commentId)
+        : await likeComment(commentId);
+      setCommentItems((prev) => updateCommentLikeState(prev, response.commentId, response.likeCount, response.likedByMe));
+    } catch {
+      setCommentsError("Cannot update comment like right now.");
+    }
+  };
+
+  const toggleReplyBox = (commentId: string) => {
+    setActiveReplyId((prev) => (prev === commentId ? null : commentId));
+  };
+
+  const updateReplyDraft = (commentId: string, value: string) => {
+    setReplyDrafts((prev) => ({ ...prev, [commentId]: value }));
+  };
+
+  const submitReply = async (commentId: string) => {
+    if (!postData) {
+      return;
+    }
+
+    const content = (replyDrafts[commentId] || "").trim();
+    if (!content) {
+      return;
+    }
+
+    try {
+      await replyComment(commentId, content);
+      setReplyDrafts((prev) => ({ ...prev, [commentId]: "" }));
+      setActiveReplyId(null);
+      await refreshComments();
+    } catch {
+      setCommentsError("Cannot post reply right now.");
     }
   };
 
@@ -269,6 +338,10 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
     commentsError,
     commentText,
     setCommentText,
+    replyDrafts,
+    activeReplyId,
+    toggleReplyBox,
+    updateReplyDraft,
     activeMedia,
     hasGallery,
     activeIndex,
@@ -279,7 +352,9 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
     caption,
     tags,
     toggleLike,
+    toggleCommentLike,
     submitComment,
+    submitReply,
     goPrev,
     goNext,
   };
@@ -289,6 +364,7 @@ type PostDetailViewProps = {
   postId?: string;
   model: PostDetailModel;
   onClose: () => void;
+  highlightCommentId?: string | null;
 };
 
 type PostDetailMediaProps = {
@@ -358,14 +434,21 @@ type PostDetailInfoProps = {
   caption: string;
   tags: string[];
   commentItems: Comment[];
+  highlightCommentId?: string | null;
   commentsLoading: boolean;
   commentsError: string | null;
   commentText: string;
   setCommentText: (value: string) => void;
+  replyDrafts: Record<string, string>;
+  activeReplyId: string | null;
+  toggleReplyBox: (commentId: string) => void;
+  updateReplyDraft: (commentId: string, value: string) => void;
   error: string | null;
   isLoading: boolean;
   onToggleLike: () => Promise<void>;
+  onToggleCommentLike: (commentId: string, likedByMe: boolean) => Promise<void>;
   onSubmitComment: () => Promise<void>;
+  onSubmitReply: (commentId: string) => Promise<void>;
 };
 
 function PostDetailInfo({
@@ -376,15 +459,93 @@ function PostDetailInfo({
   caption,
   tags,
   commentItems,
+  highlightCommentId,
   commentsLoading,
   commentsError,
   commentText,
   setCommentText,
+  replyDrafts,
+  activeReplyId,
+  toggleReplyBox,
+  updateReplyDraft,
   error,
   isLoading,
   onToggleLike,
+  onToggleCommentLike,
   onSubmitComment,
+  onSubmitReply,
 }: Readonly<PostDetailInfoProps>) {
+  const countAllComments = (comments: Comment[]): number => (
+    comments.reduce((total, comment) => total + 1 + countAllComments(comment.replies), 0)
+  );
+
+  const totalCommentCount = countAllComments(commentItems);
+
+  useEffect(() => {
+    if (!highlightCommentId) {
+      return;
+    }
+
+    const target = document.getElementById(`comment-${highlightCommentId}`);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [commentItems, highlightCommentId]);
+
+  const renderComment = (comment: Comment) => (
+    <li key={comment.commentId} id={`comment-${comment.commentId}`} className="post-detail__comment-item">
+      <div className="post-detail__comment-root">
+        <div className="post-detail__comment-avatar">
+          {comment.avatarUrl ? (
+            <img src={comment.avatarUrl} alt={comment.displayName || "User"} />
+          ) : (
+            <span>{comment.displayName?.charAt(0).toUpperCase() || "U"}</span>
+          )}
+        </div>
+        <div className="post-detail__comment-body">
+          <strong>{comment.displayName}</strong>
+          <p>{comment.content}</p>
+          <div className="post-detail__comment-actions">
+            <button
+              type="button"
+              className="post-detail__comment-like"
+              onClick={() => void onToggleCommentLike(comment.commentId, comment.likedByMe)}
+            >
+              {comment.likedByMe ? <FavoriteRoundedIcon /> : <FavoriteBorderRoundedIcon />}
+              {comment.likeCount}
+            </button>
+            <button
+              type="button"
+              className="post-detail__comment-reply"
+              onClick={() => toggleReplyBox(comment.commentId)}
+            >
+              Reply{comment.replyCount ? ` (${comment.replyCount})` : ""}
+            </button>
+          </div>
+          {activeReplyId === comment.commentId ? (
+            <div className="post-detail__reply-box">
+              <input
+                value={replyDrafts[comment.commentId] ?? ""}
+                onChange={(event) => updateReplyDraft(comment.commentId, event.target.value)}
+                placeholder="Write a reply"
+              />
+              <button type="button" onClick={() => void onSubmitReply(comment.commentId)}>
+                Send
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </div>
+      {comment.replies.length > 0 ? (
+        <div className="post-detail__comment-replies-wrap">
+          <ul className="post-detail__comment-replies">
+            {comment.replies.map(renderComment)}
+          </ul>
+        </div>
+      ) : null}
+    </li>
+  );
+
   return (
     <aside className="post-detail__info">
       {postData ? (
@@ -420,7 +581,7 @@ function PostDetailInfo({
               {postData.likedByMe ? <FavoriteRoundedIcon /> : <FavoriteBorderRoundedIcon />}
               {postData.likeCount}
             </button>
-            <span>{commentItems.length} comments</span>
+            <span>{totalCommentCount} comments</span>
           </div>
 
           <div className="post-detail__comment-box">
@@ -439,21 +600,7 @@ function PostDetailInfo({
             {commentsLoading ? <p>Loading comments...</p> : null}
             {commentsError ? <p>{commentsError}</p> : null}
             <ul>
-              {commentItems.map((comment) => (
-                <li key={comment.commentId}>
-                  <div className="post-detail__comment-avatar">
-                    {comment.avatarUrl ? (
-                      <img src={comment.avatarUrl} alt={comment.displayName || "User"} />
-                    ) : (
-                      <span>{comment.displayName?.charAt(0).toUpperCase() || "U"}</span>
-                    )}
-                  </div>
-                  <div className="post-detail__comment-body">
-                    <strong>{comment.displayName}</strong>
-                    <p>{comment.content}</p>
-                  </div>
-                </li>
-              ))}
+              {commentItems.map(renderComment)}
             </ul>
           </div>
         </>
@@ -467,7 +614,7 @@ function PostDetailInfo({
   );
 }
 
-function PostDetailView({ postId, model, onClose }: Readonly<PostDetailViewProps>) {
+function PostDetailView({ postId, model, onClose, highlightCommentId }: Readonly<PostDetailViewProps>) {
   const {
     postData,
     error,
@@ -477,6 +624,10 @@ function PostDetailView({ postId, model, onClose }: Readonly<PostDetailViewProps
     commentsError,
     commentText,
     setCommentText,
+    replyDrafts,
+    activeReplyId,
+    toggleReplyBox,
+    updateReplyDraft,
     activeMedia,
     hasGallery,
     activeIndex,
@@ -487,7 +638,9 @@ function PostDetailView({ postId, model, onClose }: Readonly<PostDetailViewProps
     caption,
     tags,
     toggleLike,
+    toggleCommentLike,
     submitComment,
+    submitReply,
     goPrev,
     goNext,
   } = model;
@@ -521,14 +674,21 @@ function PostDetailView({ postId, model, onClose }: Readonly<PostDetailViewProps
           caption={caption}
           tags={tags}
           commentItems={commentItems}
+          highlightCommentId={highlightCommentId}
           commentsLoading={commentsLoading}
           commentsError={commentsError}
           commentText={commentText}
           setCommentText={setCommentText}
+          replyDrafts={replyDrafts}
+          activeReplyId={activeReplyId}
+          toggleReplyBox={toggleReplyBox}
+          updateReplyDraft={updateReplyDraft}
           error={error}
           isLoading={isLoading}
           onToggleLike={toggleLike}
+          onToggleCommentLike={toggleCommentLike}
           onSubmitComment={submitComment}
+          onSubmitReply={submitReply}
         />
       </div>
     </dialog>
@@ -546,6 +706,7 @@ function PostDetailPage() {
     <PostDetailView
       postId={postId}
       model={model}
+      highlightCommentId={state?.commentId ?? null}
       onClose={() => navigate(-1)}
     />
   );

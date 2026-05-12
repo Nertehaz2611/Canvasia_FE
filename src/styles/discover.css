@@ -348,10 +348,24 @@
 }
 
 .posts-sidebar__list li {
+  padding: 0;
+}
+
+.posts-sidebar__link {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 12px;
+  padding: 6px 8px;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.posts-sidebar__link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-1px);
 }
 
 .posts-sidebar__avatar {
@@ -469,7 +483,7 @@
 
 .post-card__image {
   width: 100%;
-  border-radius: 10px;
+  border-radius: 0;
   border: 1px solid rgba(255, 255, 255, 0.09);
 }
 
@@ -749,6 +763,12 @@
 .post-detail__comments li {
   padding: 0;
   display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.post-detail__comment-root {
+  display: flex;
   gap: 10px;
   align-items: flex-start;
 }
@@ -788,6 +808,71 @@
   min-width: 0;
 }
 
+.post-detail__comment-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.post-detail__comment-like,
+.post-detail__comment-reply {
+  border: 0;
+  background: transparent;
+  color: #cfcfcf;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.post-detail__comment-like svg {
+  font-size: 1rem;
+}
+
+.post-detail__reply-box {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.post-detail__reply-box input {
+  flex: 1;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #0f0f0f;
+  color: #fff;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+}
+
+.post-detail__reply-box button {
+  border: 0;
+  border-radius: 9px;
+  background: #f0f0f0;
+  color: #0f0f0f;
+  font-weight: 700;
+  padding: 0 12px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.post-detail__comment-replies-wrap {
+  padding-left: 18px;
+}
+
+.post-detail__comment-replies {
+  list-style: none;
+  margin: 0;
+  padding: 10px 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .post-detail__info-loading {
   padding: 0;
   color: #c9c9c9;
@@ -808,6 +893,12 @@
   min-height: 0;
   overflow: auto;
   padding-right: 4px;
+  scrollbar-width: none;
+}
+
+.post-detail__comments::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .post-detail__comment-box {

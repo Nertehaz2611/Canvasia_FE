@@ -174,18 +174,25 @@ function PostsPage() {
             <ul className="posts-sidebar__list">
               {latestDiscussions.map((item) => (
                 <li key={item.commentId}>
-                  <div className="posts-sidebar__avatar">
-                    {item.avatarUrl ? (
-                      <img src={item.avatarUrl} alt={item.displayName || "User"} />
-                    ) : (
-                      <span>{(item.displayName || "U").charAt(0)}</span>
-                    )}
-                  </div>
-                  <div className="posts-sidebar__content">
-                    <p className="posts-sidebar__title">{item.displayName}</p>
-                    <p className="posts-sidebar__subtitle">{item.content}</p>
-                  </div>
-                  <span className="posts-sidebar__time">{formatDate(item.createdAt)}</span>
+                  <Link
+                    className="posts-sidebar__link"
+                    to={`/posts/${item.postId}`}
+                    state={{ commentId: item.commentId }}
+                    aria-label={`Open post detail for ${item.displayName || "comment"}`}
+                  >
+                    <div className="posts-sidebar__avatar">
+                      {item.avatarUrl ? (
+                        <img src={item.avatarUrl} alt={item.displayName || "User"} />
+                      ) : (
+                        <span>{(item.displayName || "U").charAt(0)}</span>
+                      )}
+                    </div>
+                    <div className="posts-sidebar__content">
+                      <p className="posts-sidebar__title">{item.displayName}</p>
+                      <p className="posts-sidebar__subtitle">{item.content}</p>
+                    </div>
+                    <span className="posts-sidebar__time">{formatDate(item.createdAt)}</span>
+                  </Link>
                 </li>
               ))}
             </ul>
