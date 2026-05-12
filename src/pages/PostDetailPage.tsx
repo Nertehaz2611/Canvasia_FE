@@ -187,11 +187,23 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
     setActiveIndex(initialIndex);
   }, [initialIndex, postId]);
 
+  const normalizeTag = (tag: string) => {
+    const trimmed = tag.trim();
+    return trimmed.startsWith("#") ? trimmed.slice(1) : trimmed;
+  };
+
+  const isHashtagTag = (tag: string) => {
+    const normalized = normalizeTag(tag);
+    return normalized.length > 0 && !normalized.startsWith("@");
+  };
+
   const displayName = postData?.displayName || "Unknown creator";
   const username = postData?.username || "unknown";
   const createdAt = postData?.createdAt ? new Date(postData.createdAt).toLocaleString() : "Just now";
   const caption = postData?.caption || "No caption yet.";
-  const tags = postData?.tags?.length ? postData.tags : placeholderTags;
+  const tags = (postData?.tags?.length ? postData.tags : placeholderTags)
+    .filter(isHashtagTag)
+    .map(normalizeTag);
 
   const toggleLike = async () => {
     if (!postData) {
@@ -395,11 +407,13 @@ function PostDetailInfo({
             <p>{caption}</p>
           </div>
 
-          <div className="post-detail__tags">
-            {tags.map((tag) => (
-              <span key={tag}>#{tag}</span>
-            ))}
-          </div>
+          {tags.length > 0 ? (
+            <div className="post-detail__tags">
+              {tags.map((tag) => (
+                <span key={tag}>#{tag}</span>
+              ))}
+            </div>
+          ) : null}
 
           <div className="post-detail__stats">
             <button type="button" className="post-detail__like" onClick={() => void onToggleLike()}>

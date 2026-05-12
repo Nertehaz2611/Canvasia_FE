@@ -21,6 +21,16 @@ function PostsPage() {
   const [latestDiscussions, setLatestDiscussions] = useState<LatestDiscussionItem[]>([]);
   const [latestHashtags, setLatestHashtags] = useState<string[]>([]);
 
+  const normalizeTag = (tag: string) => {
+    const trimmed = tag.trim();
+    return trimmed.startsWith("#") ? trimmed.slice(1) : trimmed;
+  };
+
+  const isHashtagTag = (tag: string) => {
+    const normalized = normalizeTag(tag);
+    return normalized.length > 0 && !normalized.startsWith("@");
+  };
+
   const loadPosts = async (replace = false) => {
     setIsLoading(true);
     setError(null);
@@ -50,7 +60,12 @@ function PostsPage() {
           getLatestHashtags(5),
         ]);
         setLatestDiscussions(discussionResponse.items);
-        setLatestHashtags(hashtagResponse.items);
+        setLatestHashtags(
+          hashtagResponse.items
+            .filter(isHashtagTag)
+            .map(normalizeTag)
+            .slice(0, 5)
+        );
       } catch {
         setLatestDiscussions([]);
         setLatestHashtags([]);
@@ -115,9 +130,11 @@ function PostsPage() {
                   </Link>
                 ) : null}
 
-                {post.tags.length > 0 ? (
+                {post.tags.some(isHashtagTag) ? (
                   <div className="post-card__tags">
-                    {post.tags.map((tag) => <span key={`${post.postId}-${tag}`}>#{tag}</span>)}
+                    {post.tags.filter(isHashtagTag).map((tag) => (
+                      <span key={`${post.postId}-${tag}`}>#{normalizeTag(tag)}</span>
+                    ))}
                   </div>
                 ) : null}
 
