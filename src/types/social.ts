@@ -3,6 +3,8 @@ export type MediaItem = {
   orderIndex: number | null;
   originalPublicId: string;
   originalUrl: string;
+  thumbnailPublicId?: string | null;
+  thumbnailUrl?: string | null;
 };
 
 export type Post = {

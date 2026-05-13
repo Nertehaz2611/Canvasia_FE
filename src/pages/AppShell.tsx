@@ -79,6 +79,7 @@ function AppShell() {
 
   const displayName = profile?.displayName || profile?.username || "User";
   const initial = displayName.charAt(0).toUpperCase();
+  const homePath = profile?.username ? `/${profile.username}` : "/home";
 
   return (
     <div className="app-shell">
@@ -88,7 +89,7 @@ function AppShell() {
             <img src={projectLogoImage} alt="Canvasia" />
           </NavLink>
           <div className="topbar-tabs">
-            <NavLink to="/home" className="topbar-link topbar-link--activeable" aria-label="Home">
+            <NavLink to={homePath} className="topbar-link topbar-link--activeable" aria-label="Home">
               <HomeRoundedIcon fontSize="small" />
               <span>Home</span>
             </NavLink>
