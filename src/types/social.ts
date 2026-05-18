@@ -130,6 +130,20 @@ export type CreatePostInput = {
   mediaFiles: File[];
 };
 
+export type ReplacePostMediaInput = {
+  mediaId: string;
+  file: File;
+};
+
+export type UpdatePostInput = {
+  postId: string;
+  caption: string;
+  tags: string[];
+  deleteMediaIds: string[];
+  replaceMedia: ReplacePostMediaInput[];
+  newFiles: File[];
+};
+
 export type ProfileSetupInput = {
   displayName: string;
   bio: string;

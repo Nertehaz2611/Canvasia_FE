@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import FavoriteBorderRoundedIcon from "@mui/icons-material/FavoriteBorderRounded";
 import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
 import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
+import PostCardMedia from "../components/posts/PostCardMedia";
 import {
   createPost,
   getLatestDiscussions,
@@ -358,21 +359,11 @@ function HomePage() {
 
                   {post.caption ? <p className="post-card__caption">{post.caption}</p> : null}
 
-                  {post.media[0]?.originalUrl ? (
-                    <Link
-                      to={`/posts/${post.postId}`}
-                      state={{ post, initialMediaIndex: 0 }}
-                      className="post-card__media-link"
-                      aria-label="Open post detail"
-                    >
-                      <img
-                        className="post-card__image"
-                        src={post.media[0].originalUrl}
-                        alt={post.caption || "Artwork"}
-                        loading="lazy"
-                      />
-                    </Link>
-                  ) : null}
+                  <PostCardMedia
+                    postId={post.postId}
+                    caption={post.caption}
+                    media={post.media}
+                  />
 
                   {post.tags.length ? (
                     <div className="post-card__tags">

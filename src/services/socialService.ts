@@ -6,8 +6,11 @@ import type {
   CursorPostFeedResponse,
   CursorThumbnailFeedResponse,
   CreatePostInput,
+  ReplacePostMediaInput,
+  UpdatePostInput,
   LatestDiscussionFeedResponse,
   LatestHashtagResponse,
+  Post,
   PostFeedResponse,
   PostLikeResponse,
   Profile,
@@ -60,6 +63,42 @@ export async function createPost(input: CreatePostInput): Promise<void> {
       "Content-Type": "multipart/form-data",
     },
   });
+}
+
+export async function updatePost(input: UpdatePostInput): Promise<Post> {
+  const formData = new FormData();
+  const payload = {
+    caption: input.caption.trim() || null,
+    tags: input.tags,
+    deleteMediaIds: input.deleteMediaIds,
+    replaceMedia: [] as Array<{ mediaId: string; fileIndex: number }>,
+    thumbnailCrops: [],
+  };
+
+  const files: File[] = [];
+  const appendReplacement = (item: ReplacePostMediaInput) => {
+    const fileIndex = files.length;
+    files.push(item.file);
+    payload.replaceMedia.push({ mediaId: item.mediaId, fileIndex });
+  };
+
+  input.replaceMedia.forEach(appendReplacement);
+  input.newFiles.forEach((file) => files.push(file));
+
+  formData.append("payload", JSON.stringify(payload));
+  files.forEach((file) => formData.append("media", file));
+
+  const response = await api.put<Post>(`/posts/${input.postId}`, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+
+  return response.data;
+}
+
+export async function deletePost(postId: string): Promise<void> {
+  await api.delete(`/posts/${postId}`);
 }
 
 export async function likePost(postId: string): Promise<PostLikeResponse> {

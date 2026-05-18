@@ -4,16 +4,20 @@ import FavoriteBorderRoundedIcon from "@mui/icons-material/FavoriteBorderRounded
 import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
 import {
   createComment,
+  deletePost,
   getComments,
   getDiscoverPosts,
+  getMyProfile,
   likeComment,
   likePost,
   replyComment,
+  updatePost,
   unlikeComment,
   unlikePost,
 } from "../services/socialService";
 import { getErrorMessage } from "../utils/errorMessage";
-import type { Comment, MediaItem, Post } from "../types/social";
+import type { Comment, MediaItem, Post, UpdatePostInput } from "../types/social";
+import PostEditorModal from "../components/posts/PostEditorModal";
 
 const placeholderTags = ["visual", "painting", "digital", "study", "palette"];
 
@@ -29,6 +33,7 @@ type PostDetailState = {
 
 type PostDetailModel = {
   postData: Post | null;
+  currentUsername: string | null;
   error: string | null;
   isLoading: boolean;
   commentItems: Comment[];
@@ -41,9 +46,9 @@ type PostDetailModel = {
   toggleReplyBox: (commentId: string) => void;
   updateReplyDraft: (commentId: string, value: string) => void;
   activeMedia: MediaItem | undefined;
+  mediaItems: MediaItem[];
   hasGallery: boolean;
   activeIndex: number;
-  mediaCount: number;
   displayName: string;
   username: string;
   createdAt: string;
@@ -55,6 +60,8 @@ type PostDetailModel = {
   submitReply: (commentId: string) => Promise<void>;
   goPrev: () => void;
   goNext: () => void;
+  selectMedia: (index: number) => void;
+  updatePostData: (post: Post) => void;
 };
 
 function updateCommentLikeState(
@@ -96,6 +103,7 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
   const [postData, setPostData] = useState<Post | null>(state?.post ?? null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
   const [commentItems, setCommentItems] = useState<Comment[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
@@ -112,6 +120,29 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
     setReplyDrafts({});
     setActiveReplyId(null);
   }, [postId, state?.post]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProfile = async () => {
+      try {
+        const profile = await getMyProfile();
+        if (isMounted) {
+          setCurrentUsername(profile.username);
+        }
+      } catch {
+        if (isMounted) {
+          setCurrentUsername(null);
+        }
+      }
+    };
+
+    void loadProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (postData?.postId) {
@@ -206,7 +237,6 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const activeMedia = mediaItems[activeIndex];
   const hasGallery = mediaItems.length > 1;
-  const mediaCount = mediaItems.length;
 
   useEffect(() => {
     if (mediaItems.length > 0 && activeIndex >= mediaItems.length) {
@@ -329,8 +359,23 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
     setActiveIndex((prev) => (prev + 1) % mediaItems.length);
   };
 
+  const selectMedia = (index: number) => {
+    if (!hasGallery) {
+      return;
+    }
+
+    const clamped = Math.min(Math.max(index, 0), mediaItems.length - 1);
+    setActiveIndex(clamped);
+  };
+
+  const updatePostData = (post: Post) => {
+    postCache.set(post.postId, post);
+    setPostData(post);
+  };
+
   return {
     postData,
+    currentUsername,
     error,
     isLoading,
     commentItems,
@@ -343,9 +388,9 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
     toggleReplyBox,
     updateReplyDraft,
     activeMedia,
+    mediaItems,
     hasGallery,
     activeIndex,
-    mediaCount,
     displayName,
     username,
     createdAt,
@@ -357,6 +402,8 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
     submitReply,
     goPrev,
     goNext,
+    selectMedia,
+    updatePostData,
   };
 }
 
@@ -365,41 +412,55 @@ type PostDetailViewProps = {
   model: PostDetailModel;
   onClose: () => void;
   highlightCommentId?: string | null;
+  canEdit: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
 };
 
 type PostDetailMediaProps = {
   postId?: string;
   activeMedia: MediaItem | undefined;
+  mediaItems: MediaItem[];
   caption: string;
   isLoading: boolean;
   error: string | null;
   hasGallery: boolean;
   activeIndex: number;
-  mediaCount: number;
   onPrev: () => void;
   onNext: () => void;
+  onSelect: (index: number) => void;
 };
 
 function PostDetailMedia({
   postId,
   activeMedia,
+  mediaItems,
   caption,
   isLoading,
   error,
   hasGallery,
   activeIndex,
-  mediaCount,
   onPrev,
   onNext,
+  onSelect,
 }: Readonly<PostDetailMediaProps>) {
   return (
     <div className="post-detail__media">
       <div className="post-detail__media-frame">
         {activeMedia?.originalUrl ? (
-          <img
-            src={activeMedia.originalUrl}
-            alt={caption}
-          />
+          <div
+            className="post-detail__media-track"
+            style={{ transform: `translateX(-${activeIndex * 100}%)` }}
+          >
+            {mediaItems.map((item) => (
+              <div key={item.mediaId} className="post-detail__media-slide">
+                <img
+                  src={item.originalUrl}
+                  alt={caption}
+                />
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="post-detail__media-placeholder">
             <p>No media available</p>
@@ -412,13 +473,34 @@ function PostDetailMedia({
 
         {hasGallery ? (
           <div className="post-detail__media-controls">
-            <button type="button" onClick={onPrev} aria-label="Previous media">
-              Prev
+            <button
+              type="button"
+              className="post-detail__media-arrow post-detail__media-arrow--prev"
+              onClick={onPrev}
+              aria-label="Previous media"
+            >
+              <span aria-hidden="true">&lt;</span>
             </button>
-            <span>{activeIndex + 1}/{mediaCount}</span>
-            <button type="button" onClick={onNext} aria-label="Next media">
-              Next
+            <button
+              type="button"
+              className="post-detail__media-arrow post-detail__media-arrow--next"
+              onClick={onNext}
+              aria-label="Next media"
+            >
+              <span aria-hidden="true">&gt;</span>
             </button>
+            <div className="post-detail__media-dots" role="tablist" aria-label="Media navigation">
+              {mediaItems.map((item, index) => (
+                <button
+                  key={item.mediaId}
+                  type="button"
+                  className={index === activeIndex ? "post-detail__media-dot post-detail__media-dot--active" : "post-detail__media-dot"}
+                  onClick={() => onSelect(index)}
+                  aria-label={`Go to media ${index + 1}`}
+                  aria-pressed={index === activeIndex}
+                />
+              ))}
+            </div>
           </div>
         ) : null}
       </div>
@@ -449,15 +531,28 @@ type PostDetailInfoProps = {
   onToggleCommentLike: (commentId: string, likedByMe: boolean) => Promise<void>;
   onSubmitComment: () => Promise<void>;
   onSubmitReply: (commentId: string) => Promise<void>;
+  canEdit: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
 };
 
-function PostDetailInfo({
-  postData,
-  displayName,
-  username,
-  createdAt,
-  caption,
-  tags,
+type PostDetailCommentsProps = {
+  commentItems: Comment[];
+  highlightCommentId?: string | null;
+  commentsLoading: boolean;
+  commentsError: string | null;
+  commentText: string;
+  setCommentText: (value: string) => void;
+  replyDrafts: Record<string, string>;
+  activeReplyId: string | null;
+  toggleReplyBox: (commentId: string) => void;
+  updateReplyDraft: (commentId: string, value: string) => void;
+  onToggleCommentLike: (commentId: string, likedByMe: boolean) => Promise<void>;
+  onSubmitComment: () => Promise<void>;
+  onSubmitReply: (commentId: string) => Promise<void>;
+};
+
+function PostDetailComments({
   commentItems,
   highlightCommentId,
   commentsLoading,
@@ -468,13 +563,10 @@ function PostDetailInfo({
   activeReplyId,
   toggleReplyBox,
   updateReplyDraft,
-  error,
-  isLoading,
-  onToggleLike,
   onToggleCommentLike,
   onSubmitComment,
   onSubmitReply,
-}: Readonly<PostDetailInfoProps>) {
+}: Readonly<PostDetailCommentsProps>) {
   const countAllComments = (comments: Comment[]): number => (
     comments.reduce((total, comment) => total + 1 + countAllComments(comment.replies), 0)
   );
@@ -547,6 +639,62 @@ function PostDetailInfo({
   );
 
   return (
+    <>
+      <div className="post-detail__stats">
+        <span>{totalCommentCount} comments</span>
+      </div>
+
+      <div className="post-detail__comment-box">
+        <input
+          value={commentText}
+          onChange={(event) => setCommentText(event.target.value)}
+          placeholder="Write a comment"
+        />
+        <button type="button" onClick={() => void onSubmitComment()}>
+          Send
+        </button>
+      </div>
+
+      <div className="post-detail__comments">
+        <h4>Comments</h4>
+        {commentsLoading ? <p>Loading comments...</p> : null}
+        {commentsError ? <p>{commentsError}</p> : null}
+        <ul>
+          {commentItems.map(renderComment)}
+        </ul>
+      </div>
+    </>
+  );
+}
+
+function PostDetailInfo({
+  postData,
+  displayName,
+  username,
+  createdAt,
+  caption,
+  tags,
+  commentItems,
+  highlightCommentId,
+  commentsLoading,
+  commentsError,
+  commentText,
+  setCommentText,
+  replyDrafts,
+  activeReplyId,
+  toggleReplyBox,
+  updateReplyDraft,
+  error,
+  isLoading,
+  onToggleLike,
+  onToggleCommentLike,
+  onSubmitComment,
+  onSubmitReply,
+  canEdit,
+  onEdit,
+  onDelete,
+}: Readonly<PostDetailInfoProps>) {
+  return (
     <aside className="post-detail__info">
       {postData ? (
         <>
@@ -562,6 +710,16 @@ function PostDetailInfo({
               <h3>{displayName}</h3>
               <p>@{username} • {createdAt}</p>
             </div>
+            {canEdit ? (
+              <div className="post-detail__author-actions">
+                <button type="button" className="post-detail__action" onClick={onEdit}>
+                  Edit
+                </button>
+                <button type="button" className="post-detail__action post-detail__action--danger" onClick={onDelete}>
+                  Delete
+                </button>
+              </div>
+            ) : null}
           </header>
 
           <div className="post-detail__caption">
@@ -581,28 +739,22 @@ function PostDetailInfo({
               {postData.likedByMe ? <FavoriteRoundedIcon /> : <FavoriteBorderRoundedIcon />}
               {postData.likeCount}
             </button>
-            <span>{totalCommentCount} comments</span>
           </div>
-
-          <div className="post-detail__comment-box">
-            <input
-              value={commentText}
-              onChange={(event) => setCommentText(event.target.value)}
-              placeholder="Write a comment"
-            />
-            <button type="button" onClick={() => void onSubmitComment()}>
-              Send
-            </button>
-          </div>
-
-          <div className="post-detail__comments">
-            <h4>Comments</h4>
-            {commentsLoading ? <p>Loading comments...</p> : null}
-            {commentsError ? <p>{commentsError}</p> : null}
-            <ul>
-              {commentItems.map(renderComment)}
-            </ul>
-          </div>
+          <PostDetailComments
+            commentItems={commentItems}
+            highlightCommentId={highlightCommentId}
+            commentsLoading={commentsLoading}
+            commentsError={commentsError}
+            commentText={commentText}
+            setCommentText={setCommentText}
+            replyDrafts={replyDrafts}
+            activeReplyId={activeReplyId}
+            toggleReplyBox={toggleReplyBox}
+            updateReplyDraft={updateReplyDraft}
+            onToggleCommentLike={onToggleCommentLike}
+            onSubmitComment={onSubmitComment}
+            onSubmitReply={onSubmitReply}
+          />
         </>
       ) : (
         <div className="post-detail__info-loading">
@@ -614,7 +766,7 @@ function PostDetailInfo({
   );
 }
 
-function PostDetailView({ postId, model, onClose, highlightCommentId }: Readonly<PostDetailViewProps>) {
+function PostDetailView({ postId, model, onClose, highlightCommentId, canEdit, onEdit, onDelete }: Readonly<PostDetailViewProps>) {
   const {
     postData,
     error,
@@ -629,9 +781,9 @@ function PostDetailView({ postId, model, onClose, highlightCommentId }: Readonly
     toggleReplyBox,
     updateReplyDraft,
     activeMedia,
+    mediaItems,
     hasGallery,
     activeIndex,
-    mediaCount,
     displayName,
     username,
     createdAt,
@@ -643,8 +795,8 @@ function PostDetailView({ postId, model, onClose, highlightCommentId }: Readonly
     submitReply,
     goPrev,
     goNext,
+    selectMedia,
   } = model;
-
   return (
     <dialog className="post-detail-overlay" aria-modal="true" open>
       <button
@@ -657,14 +809,15 @@ function PostDetailView({ postId, model, onClose, highlightCommentId }: Readonly
         <PostDetailMedia
           postId={postId}
           activeMedia={activeMedia}
+          mediaItems={mediaItems}
           caption={caption}
           isLoading={isLoading}
           error={error}
           hasGallery={hasGallery}
           activeIndex={activeIndex}
-          mediaCount={mediaCount}
           onPrev={goPrev}
           onNext={goNext}
+          onSelect={selectMedia}
         />
         <PostDetailInfo
           postData={postData}
@@ -689,26 +842,105 @@ function PostDetailView({ postId, model, onClose, highlightCommentId }: Readonly
           onToggleCommentLike={toggleCommentLike}
           onSubmitComment={submitComment}
           onSubmitReply={submitReply}
+          canEdit={canEdit}
+          onEdit={onEdit}
+          onDelete={onDelete}
         />
       </div>
     </dialog>
   );
 }
-
 function PostDetailPage() {
   const { postId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const state = (location.state as PostDetailState | null) ?? null;
   const model = usePostDetail(postId, state);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const isOwner = !!model.currentUsername && model.postData?.username === model.currentUsername;
+
+  const handleUpdate = async (input: UpdatePostInput) => {
+    setEditBusy(true);
+    setEditError(null);
+    try {
+      const updatedPost = await updatePost(input);
+      model.updatePostData(updatedPost);
+      setEditOpen(false);
+    } catch (error) {
+      setEditError(getErrorMessage(error, "Cannot update post"));
+    } finally {
+      setEditBusy(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!postId) {
+      return;
+    }
+
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await deletePost(postId);
+      navigate(-1);
+    } catch (error) {
+      setDeleteError(getErrorMessage(error, "Cannot delete post"));
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
 
   return (
-    <PostDetailView
-      postId={postId}
-      model={model}
-      highlightCommentId={state?.commentId ?? null}
-      onClose={() => navigate(-1)}
-    />
+    <>
+      <PostDetailView
+        postId={postId}
+        model={model}
+        highlightCommentId={state?.commentId ?? null}
+        onClose={() => navigate(-1)}
+        onEdit={() => setEditOpen(true)}
+        onDelete={() => setDeleteOpen(true)}
+        canEdit={isOwner}
+      />
+      {model.postData ? (
+        <PostEditorModal
+          isOpen={editOpen}
+          post={model.postData}
+          isBusy={editBusy}
+          error={editError}
+          onClose={() => setEditOpen(false)}
+          onSubmit={handleUpdate}
+        />
+      ) : null}
+      {deleteOpen ? (
+        <dialog className="post-detail__confirm" open>
+          <button
+            type="button"
+            className="post-detail__confirm-backdrop"
+            aria-label="Close delete confirmation"
+            onClick={() => setDeleteOpen(false)}
+          />
+          <div className="post-detail__confirm-card">
+            <h3>Delete this post?</h3>
+            <p>This will archive the post and remove it from your feed.</p>
+            {deleteError ? <div className="post-detail__confirm-error">{deleteError}</div> : null}
+            <div className="post-detail__confirm-actions">
+              <button type="button" onClick={() => setDeleteOpen(false)} disabled={deleteBusy}>
+                Cancel
+              </button>
+              <button type="button" className="post-detail__confirm-danger" onClick={handleDelete} disabled={deleteBusy}>
+                {deleteBusy ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </dialog>
+      ) : null}
+    </>
   );
 }
 

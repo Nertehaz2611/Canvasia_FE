@@ -1,0 +1,227 @@
+import { useEffect, useMemo, useState } from "react";
+import type { MediaItem, Post, UpdatePostInput } from "../../types/social";
+
+const EMPTY_ERROR = "A post must contain at least one image.";
+
+function normalizeTag(tag: string): string {
+  const trimmed = tag.trim();
+  return trimmed.startsWith("#") ? trimmed.slice(1) : trimmed;
+}
+
+function parseTags(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((tag) => normalizeTag(tag))
+    .filter(Boolean);
+}
+
+type PostEditorModalProps = {
+  isOpen: boolean;
+  post: Post;
+  isBusy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSubmit: (input: UpdatePostInput) => Promise<void>;
+};
+
+function PostEditorModal({
+  isOpen,
+  post,
+  isBusy,
+  error,
+  onClose,
+  onSubmit,
+}: Readonly<PostEditorModalProps>) {
+  const [caption, setCaption] = useState(post.caption || "");
+  const [tagInput, setTagInput] = useState(post.tags.join(", "));
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
+  const [replaceEntries, setReplaceEntries] = useState<Record<string, File>>({});
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const mediaItems = useMemo(() => post.media ?? [], [post.media]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    setCaption(post.caption || "");
+    setTagInput(post.tags.join(", "));
+    setRemovedIds(new Set());
+    setReplaceEntries({});
+    setNewFiles([]);
+    setLocalError(null);
+  }, [isOpen, post.caption, post.postId, post.tags]);
+
+  if (!isOpen) {
+    return null;
+  }
+
+  const toggleRemove = (mediaId: string) => {
+    setRemovedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(mediaId)) {
+        next.delete(mediaId);
+      } else {
+        next.add(mediaId);
+      }
+      return next;
+    });
+    setReplaceEntries((prev) => {
+      if (!prev[mediaId]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[mediaId];
+      return next;
+    });
+  };
+
+  const onReplace = (mediaId: string, file: File | null) => {
+    if (!file) {
+      return;
+    }
+
+    setReplaceEntries((prev) => ({ ...prev, [mediaId]: file }));
+    setRemovedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(mediaId);
+      return next;
+    });
+  };
+
+  const clearNewFiles = () => {
+    setNewFiles([]);
+  };
+
+  const handleSubmit = async () => {
+    setLocalError(null);
+
+    const deleteMediaIds = Array.from(removedIds);
+    const replaceMedia = Object.entries(replaceEntries).map(([mediaId, file]) => ({
+      mediaId,
+      file,
+    }));
+
+    const remainingCount = mediaItems.length - deleteMediaIds.length + newFiles.length;
+    if (remainingCount <= 0) {
+      setLocalError(EMPTY_ERROR);
+      return;
+    }
+
+    await onSubmit({
+      postId: post.postId,
+      caption,
+      tags: parseTags(tagInput),
+      deleteMediaIds,
+      replaceMedia,
+      newFiles,
+    });
+  };
+
+  const renderMediaPreview = (media: MediaItem) => {
+    const isRemoved = removedIds.has(media.mediaId);
+    const replacement = replaceEntries[media.mediaId];
+    const previewUrl = media.thumbnailUrl || media.originalUrl;
+
+    return (
+      <div key={media.mediaId} className={isRemoved ? "post-editor__media post-editor__media--removed" : "post-editor__media"}>
+        <img src={previewUrl} alt="Post media" />
+        <div className="post-editor__media-actions">
+          <label className="post-editor__media-replace">
+            <span>Replace</span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(event) => onReplace(media.mediaId, event.target.files?.[0] ?? null)}
+            />
+          </label>
+          <button type="button" onClick={() => toggleRemove(media.mediaId)}>
+            {isRemoved ? "Undo" : "Remove"}
+          </button>
+        </div>
+        {replacement ? <span className="post-editor__media-note">Replacement selected</span> : null}
+      </div>
+    );
+  };
+
+  return (
+    <dialog className="post-editor" open>
+      <button type="button" className="post-editor__backdrop" aria-label="Close editor" onClick={onClose} />
+      <div className="post-editor__card">
+        <div className="post-editor__header">
+          <h3>Edit post</h3>
+          <button type="button" className="post-editor__close" onClick={onClose}>
+            Close
+          </button>
+        </div>
+
+        <div className="post-editor__body">
+          <label className="post-editor__field">
+            <span>Caption</span>
+            <textarea
+              value={caption}
+              onChange={(event) => setCaption(event.target.value)}
+              rows={4}
+              placeholder="Update your caption"
+            />
+          </label>
+
+          <label className="post-editor__field">
+            <span>Tags (comma separated)</span>
+            <input
+              value={tagInput}
+              onChange={(event) => setTagInput(event.target.value)}
+              placeholder="#painting, #study"
+            />
+          </label>
+
+          <div className="post-editor__section">
+            <h4>Current media</h4>
+            <div className="post-editor__media-grid">
+              {mediaItems.map(renderMediaPreview)}
+            </div>
+          </div>
+
+          <div className="post-editor__section">
+            <h4>Add new media</h4>
+            <div className="post-editor__upload">
+              <label className="post-editor__upload-button">
+                <span>Add files</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(event) => setNewFiles(Array.from(event.target.files ?? []))}
+                />
+              </label>
+              {newFiles.length ? (
+                <div className="post-editor__upload-meta">
+                  <span>{newFiles.length} new files</span>
+                  <button type="button" onClick={clearNewFiles}>Clear</button>
+                </div>
+              ) : (
+                <span className="post-editor__upload-hint">No new files selected.</span>
+              )}
+            </div>
+          </div>
+
+          {localError ? <div className="post-editor__alert">{localError}</div> : null}
+          {error ? <div className="post-editor__alert">{error}</div> : null}
+        </div>
+
+        <div className="post-editor__footer">
+          <button type="button" className="post-editor__ghost" onClick={onClose} disabled={isBusy}>
+            Cancel
+          </button>
+          <button type="button" className="post-editor__primary" onClick={handleSubmit} disabled={isBusy}>
+            {isBusy ? "Saving..." : "Save changes"}
+          </button>
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
+export default PostEditorModal;

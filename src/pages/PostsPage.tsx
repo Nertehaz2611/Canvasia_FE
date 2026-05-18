@@ -4,6 +4,7 @@ import FavoriteBorderRoundedIcon from "@mui/icons-material/FavoriteBorderRounded
 import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
 import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
 import { getDiscoverPosts, getLatestDiscussions, getLatestHashtags, likePost, unlikePost } from "../services/socialService";
+import PostCardMedia from "../components/posts/PostCardMedia";
 import { getErrorMessage } from "../utils/errorMessage";
 import type { LatestDiscussionItem, Post } from "../types/social";
 
@@ -114,21 +115,11 @@ function PostsPage() {
 
                 {post.caption ? <p className="post-card__caption">{post.caption}</p> : null}
 
-                {post.media[0]?.originalUrl ? (
-                  <Link
-                    to={`/posts/${post.postId}`}
-                    state={{ post, initialMediaIndex: 0 }}
-                    className="post-card__media-link"
-                    aria-label="Open post detail"
-                  >
-                    <img
-                      className="post-card__image"
-                      src={post.media[0].originalUrl}
-                      alt={post.caption || "Artwork"}
-                      loading="lazy"
-                    />
-                  </Link>
-                ) : null}
+                <PostCardMedia
+                  postId={post.postId}
+                  caption={post.caption}
+                  media={post.media}
+                />
 
                 {post.tags.some(isHashtagTag) ? (
                   <div className="post-card__tags">
