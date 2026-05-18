@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import FavoriteBorderRoundedIcon from "@mui/icons-material/FavoriteBorderRounded";
 import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
@@ -694,6 +694,13 @@ function PostDetailInfo({
   onEdit,
   onDelete,
 }: Readonly<PostDetailInfoProps>) {
+  const closeActionMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    const details = event.currentTarget.closest("details");
+    if (details) {
+      details.removeAttribute("open");
+    }
+  };
+
   return (
     <aside className="post-detail__info">
       {postData ? (
@@ -711,13 +718,35 @@ function PostDetailInfo({
               <p>@{username} • {createdAt}</p>
             </div>
             {canEdit ? (
-              <div className="post-detail__author-actions">
-                <button type="button" className="post-detail__action" onClick={onEdit}>
-                  Edit
-                </button>
-                <button type="button" className="post-detail__action post-detail__action--danger" onClick={onDelete}>
-                  Delete
-                </button>
+              <div className="post-detail__menu">
+                <details className="post-action-menu">
+                  <summary aria-label="Post options">
+                    <span aria-hidden="true">...</span>
+                  </summary>
+                  <div className="post-action-menu__list" role="menu">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={(event) => {
+                        closeActionMenu(event);
+                        onEdit();
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="post-action-menu__danger"
+                      onClick={(event) => {
+                        closeActionMenu(event);
+                        onDelete();
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </details>
               </div>
             ) : null}
           </header>

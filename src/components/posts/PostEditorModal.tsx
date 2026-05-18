@@ -35,7 +35,6 @@ function PostEditorModal({
   const [caption, setCaption] = useState(post.caption || "");
   const [tagInput, setTagInput] = useState(post.tags.join(", "));
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
-  const [replaceEntries, setReplaceEntries] = useState<Record<string, File>>({});
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -49,7 +48,6 @@ function PostEditorModal({
     setCaption(post.caption || "");
     setTagInput(post.tags.join(", "));
     setRemovedIds(new Set());
-    setReplaceEntries({});
     setNewFiles([]);
     setLocalError(null);
   }, [isOpen, post.caption, post.postId, post.tags]);
@@ -68,27 +66,6 @@ function PostEditorModal({
       }
       return next;
     });
-    setReplaceEntries((prev) => {
-      if (!prev[mediaId]) {
-        return prev;
-      }
-      const next = { ...prev };
-      delete next[mediaId];
-      return next;
-    });
-  };
-
-  const onReplace = (mediaId: string, file: File | null) => {
-    if (!file) {
-      return;
-    }
-
-    setReplaceEntries((prev) => ({ ...prev, [mediaId]: file }));
-    setRemovedIds((prev) => {
-      const next = new Set(prev);
-      next.delete(mediaId);
-      return next;
-    });
   };
 
   const clearNewFiles = () => {
@@ -99,11 +76,6 @@ function PostEditorModal({
     setLocalError(null);
 
     const deleteMediaIds = Array.from(removedIds);
-    const replaceMedia = Object.entries(replaceEntries).map(([mediaId, file]) => ({
-      mediaId,
-      file,
-    }));
-
     const remainingCount = mediaItems.length - deleteMediaIds.length + newFiles.length;
     if (remainingCount <= 0) {
       setLocalError(EMPTY_ERROR);
@@ -115,33 +87,30 @@ function PostEditorModal({
       caption,
       tags: parseTags(tagInput),
       deleteMediaIds,
-      replaceMedia,
+      replaceMedia: [],
       newFiles,
     });
   };
 
   const renderMediaPreview = (media: MediaItem) => {
     const isRemoved = removedIds.has(media.mediaId);
-    const replacement = replaceEntries[media.mediaId];
     const previewUrl = media.thumbnailUrl || media.originalUrl;
+    const removeLabel = isRemoved ? "Undo remove media" : "Remove media";
+    const removeClass = isRemoved
+      ? "post-editor__media-remove post-editor__media-remove--active"
+      : "post-editor__media-remove";
 
     return (
       <div key={media.mediaId} className={isRemoved ? "post-editor__media post-editor__media--removed" : "post-editor__media"}>
+        <button
+          type="button"
+          className={removeClass}
+          aria-label={removeLabel}
+          onClick={() => toggleRemove(media.mediaId)}
+        >
+          x
+        </button>
         <img src={previewUrl} alt="Post media" />
-        <div className="post-editor__media-actions">
-          <label className="post-editor__media-replace">
-            <span>Replace</span>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(event) => onReplace(media.mediaId, event.target.files?.[0] ?? null)}
-            />
-          </label>
-          <button type="button" onClick={() => toggleRemove(media.mediaId)}>
-            {isRemoved ? "Undo" : "Remove"}
-          </button>
-        </div>
-        {replacement ? <span className="post-editor__media-note">Replacement selected</span> : null}
       </div>
     );
   };

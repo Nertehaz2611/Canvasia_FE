@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { Link } from "react-router-dom";
 import FavoriteBorderRoundedIcon from "@mui/icons-material/FavoriteBorderRounded";
 import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
 import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
-import { getDiscoverPosts, getLatestDiscussions, getLatestHashtags, likePost, unlikePost } from "../services/socialService";
+import { deletePost, getDiscoverPosts, getLatestDiscussions, getLatestHashtags, getMyProfile, likePost, updatePost, unlikePost } from "../services/socialService";
 import PostCardMedia from "../components/posts/PostCardMedia";
+import PostEditorModal from "../components/posts/PostEditorModal";
 import { getErrorMessage } from "../utils/errorMessage";
-import type { LatestDiscussionItem, Post } from "../types/social";
+import type { LatestDiscussionItem, Post, UpdatePostInput } from "../types/social";
 
 function formatDate(iso: string): string {
   const parsedDate = new Date(iso);
@@ -21,6 +22,15 @@ function PostsPage() {
   const [error, setError] = useState<string | null>(null);
   const [latestDiscussions, setLatestDiscussions] = useState<LatestDiscussionItem[]>([]);
   const [latestHashtags, setLatestHashtags] = useState<string[]>([]);
+  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editPost, setEditPost] = useState<Post | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
 
   const normalizeTag = (tag: string) => {
     const trimmed = tag.trim();
@@ -51,6 +61,29 @@ function PostsPage() {
   useEffect(() => {
     void loadPosts(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProfile = async () => {
+      try {
+        const profile = await getMyProfile();
+        if (isMounted) {
+          setCurrentUsername(profile.username);
+        }
+      } catch {
+        if (isMounted) {
+          setCurrentUsername(null);
+        }
+      }
+    };
+
+    void loadProfile();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -89,6 +122,61 @@ function PostsPage() {
     }
   };
 
+  const closeActionMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    const details = event.currentTarget.closest("details");
+    if (details) {
+      details.removeAttribute("open");
+    }
+  };
+
+  const openEdit = (post: Post) => {
+    setEditPost(post);
+    setEditError(null);
+    setEditOpen(true);
+  };
+
+  const openDelete = (post: Post) => {
+    setDeleteTarget(post);
+    setDeleteError(null);
+    setDeleteOpen(true);
+  };
+
+  const handleUpdate = async (input: UpdatePostInput) => {
+    setEditBusy(true);
+    setEditError(null);
+    try {
+      const updatedPost = await updatePost(input);
+      setPosts((prev) => prev.map((item) => (
+        item.postId === updatedPost.postId ? updatedPost : item
+      )));
+      setEditPost(updatedPost);
+      setEditOpen(false);
+    } catch (loadError) {
+      setEditError(getErrorMessage(loadError, "Cannot update post"));
+    } finally {
+      setEditBusy(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) {
+      return;
+    }
+
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await deletePost(deleteTarget.postId);
+      setPosts((prev) => prev.filter((item) => item.postId !== deleteTarget.postId));
+      setDeleteOpen(false);
+      setDeleteTarget(null);
+    } catch (loadError) {
+      setDeleteError(getErrorMessage(loadError, "Cannot delete post"));
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
   return (
     <section className="discover-page discover-page--posts">
       {error ? <div className="discover-alert discover-alert--error">{error}</div> : null}
@@ -111,6 +199,38 @@ function PostsPage() {
                     <h3>{post.displayName}</h3>
                     <p>@{post.username} • {formatDate(post.createdAt)}</p>
                   </div>
+                  {currentUsername && post.username === currentUsername ? (
+                    <div className="post-card__menu">
+                      <details className="post-action-menu">
+                        <summary aria-label="Post options">
+                          <span aria-hidden="true">...</span>
+                        </summary>
+                        <div className="post-action-menu__list" role="menu">
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={(event) => {
+                              closeActionMenu(event);
+                              openEdit(post);
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="post-action-menu__danger"
+                            onClick={(event) => {
+                              closeActionMenu(event);
+                              openDelete(post);
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </details>
+                    </div>
+                  ) : null}
                 </div>
 
                 {post.caption ? <p className="post-card__caption">{post.caption}</p> : null}
@@ -204,6 +324,39 @@ function PostsPage() {
 
         <div className="posts-layout__spacer" aria-hidden="true" />
       </div>
+      {editOpen && editPost ? (
+        <PostEditorModal
+          isOpen={editOpen}
+          post={editPost}
+          isBusy={editBusy}
+          error={editError}
+          onClose={() => setEditOpen(false)}
+          onSubmit={handleUpdate}
+        />
+      ) : null}
+      {deleteOpen ? (
+        <dialog className="post-detail__confirm" open>
+          <button
+            type="button"
+            className="post-detail__confirm-backdrop"
+            aria-label="Close delete confirmation"
+            onClick={() => setDeleteOpen(false)}
+          />
+          <div className="post-detail__confirm-card">
+            <h3>Delete this post?</h3>
+            <p>This will archive the post and remove it from your feed.</p>
+            {deleteError ? <div className="post-detail__confirm-error">{deleteError}</div> : null}
+            <div className="post-detail__confirm-actions">
+              <button type="button" onClick={() => setDeleteOpen(false)} disabled={deleteBusy}>
+                Cancel
+              </button>
+              <button type="button" className="post-detail__confirm-danger" onClick={handleDelete} disabled={deleteBusy}>
+                {deleteBusy ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </dialog>
+      ) : null}
     </section>
   );
 }
