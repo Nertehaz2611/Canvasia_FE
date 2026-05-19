@@ -140,6 +140,14 @@ export async function replyComment(commentId: string, content: string): Promise<
   await api.post(`/comments/${commentId}/replies`, { content: content.trim() });
 }
 
+export async function updateComment(commentId: string, content: string): Promise<void> {
+  await api.put(`/comments/${commentId}`, { content: content.trim() });
+}
+
+export async function deleteComment(commentId: string): Promise<void> {
+  await api.delete(`/comments/${commentId}`);
+}
+
 export async function likeComment(commentId: string): Promise<CommentLikeResponse> {
   const response = await api.post<CommentLikeResponse>(`/comments/${commentId}/likes`);
   return response.data;

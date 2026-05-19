@@ -4,6 +4,7 @@ import FavoriteBorderRoundedIcon from "@mui/icons-material/FavoriteBorderRounded
 import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
 import {
   createComment,
+  deleteComment,
   deletePost,
   getComments,
   getDiscoverPosts,
@@ -11,6 +12,7 @@ import {
   likeComment,
   likePost,
   replyComment,
+  updateComment,
   updatePost,
   unlikeComment,
   unlikePost,
@@ -41,10 +43,15 @@ type PostDetailModel = {
   commentsError: string | null;
   commentText: string;
   setCommentText: (value: string) => void;
+  editingCommentId: string | null;
+  commentDrafts: Record<string, string>;
   replyDrafts: Record<string, string>;
   activeReplyId: string | null;
   toggleReplyBox: (commentId: string) => void;
   updateReplyDraft: (commentId: string, value: string) => void;
+  startEditComment: (comment: Comment) => void;
+  cancelEditComment: () => void;
+  updateCommentDraft: (commentId: string, value: string) => void;
   activeMedia: MediaItem | undefined;
   mediaItems: MediaItem[];
   hasGallery: boolean;
@@ -58,6 +65,8 @@ type PostDetailModel = {
   toggleCommentLike: (commentId: string, likedByMe: boolean) => Promise<void>;
   submitComment: () => Promise<void>;
   submitReply: (commentId: string) => Promise<void>;
+  submitEditComment: (commentId: string) => Promise<void>;
+  deleteComment: (commentId: string) => Promise<void>;
   goPrev: () => void;
   goNext: () => void;
   selectMedia: (index: number) => void;
@@ -108,6 +117,8 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
 
@@ -117,6 +128,8 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
     setCommentItems([]);
     setCommentsError(null);
     setCommentText("");
+    setEditingCommentId(null);
+    setCommentDrafts({});
     setReplyDrafts({});
     setActiveReplyId(null);
   }, [postId, state?.post]);
@@ -343,6 +356,54 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
     }
   };
 
+  const startEditComment = (comment: Comment) => {
+    setEditingCommentId(comment.commentId);
+    setCommentDrafts((prev) => ({ ...prev, [comment.commentId]: comment.content }));
+    setActiveReplyId(null);
+  };
+
+  const cancelEditComment = () => {
+    setEditingCommentId(null);
+  };
+
+  const updateCommentDraft = (commentId: string, value: string) => {
+    setCommentDrafts((prev) => ({ ...prev, [commentId]: value }));
+  };
+
+  const submitEditComment = async (commentId: string) => {
+    const content = (commentDrafts[commentId] || "").trim();
+    if (!content) {
+      return;
+    }
+
+    try {
+      await updateComment(commentId, content);
+      setEditingCommentId(null);
+      await refreshComments();
+    } catch {
+      setCommentsError("Cannot update comment right now.");
+    }
+  };
+
+  const deleteCommentById = async (commentId: string) => {
+    const shouldDelete = globalThis.confirm(
+      "Delete this comment? Root comments will remove all replies."
+    );
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      await deleteComment(commentId);
+      if (editingCommentId === commentId) {
+        setEditingCommentId(null);
+      }
+      await refreshComments();
+    } catch {
+      setCommentsError("Cannot delete comment right now.");
+    }
+  };
+
   const goPrev = () => {
     if (!hasGallery) {
       return;
@@ -383,10 +444,15 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
     commentsError,
     commentText,
     setCommentText,
+    editingCommentId,
+    commentDrafts,
     replyDrafts,
     activeReplyId,
     toggleReplyBox,
     updateReplyDraft,
+    startEditComment,
+    cancelEditComment,
+    updateCommentDraft,
     activeMedia,
     mediaItems,
     hasGallery,
@@ -400,6 +466,8 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
     toggleCommentLike,
     submitComment,
     submitReply,
+    submitEditComment,
+    deleteComment: deleteCommentById,
     goPrev,
     goNext,
     selectMedia,
@@ -525,12 +593,21 @@ type PostDetailInfoProps = {
   activeReplyId: string | null;
   toggleReplyBox: (commentId: string) => void;
   updateReplyDraft: (commentId: string, value: string) => void;
+  editingCommentId: string | null;
+  commentDrafts: Record<string, string>;
+  currentUsername: string | null;
+  postOwnerUsername: string | null;
+  onStartEdit: (comment: Comment) => void;
+  onCancelEdit: () => void;
+  onUpdateCommentDraft: (commentId: string, value: string) => void;
   error: string | null;
   isLoading: boolean;
   onToggleLike: () => Promise<void>;
   onToggleCommentLike: (commentId: string, likedByMe: boolean) => Promise<void>;
   onSubmitComment: () => Promise<void>;
   onSubmitReply: (commentId: string) => Promise<void>;
+  onSubmitEditComment: (commentId: string) => Promise<void>;
+  onDeleteComment: (commentId: string) => Promise<void>;
   canEdit: boolean;
   onEdit: () => void;
   onDelete: () => void;
@@ -547,9 +624,18 @@ type PostDetailCommentsProps = {
   activeReplyId: string | null;
   toggleReplyBox: (commentId: string) => void;
   updateReplyDraft: (commentId: string, value: string) => void;
+  editingCommentId: string | null;
+  commentDrafts: Record<string, string>;
+  currentUsername: string | null;
+  postOwnerUsername: string | null;
+  onStartEdit: (comment: Comment) => void;
+  onCancelEdit: () => void;
+  onUpdateCommentDraft: (commentId: string, value: string) => void;
   onToggleCommentLike: (commentId: string, likedByMe: boolean) => Promise<void>;
   onSubmitComment: () => Promise<void>;
   onSubmitReply: (commentId: string) => Promise<void>;
+  onSubmitEditComment: (commentId: string) => Promise<void>;
+  onDeleteComment: (commentId: string) => Promise<void>;
 };
 
 function PostDetailComments({
@@ -563,9 +649,18 @@ function PostDetailComments({
   activeReplyId,
   toggleReplyBox,
   updateReplyDraft,
+  editingCommentId,
+  commentDrafts,
+  currentUsername,
+  postOwnerUsername,
+  onStartEdit,
+  onCancelEdit,
+  onUpdateCommentDraft,
   onToggleCommentLike,
   onSubmitComment,
   onSubmitReply,
+  onSubmitEditComment,
+  onDeleteComment,
 }: Readonly<PostDetailCommentsProps>) {
   const countAllComments = (comments: Comment[]): number => (
     comments.reduce((total, comment) => total + 1 + countAllComments(comment.replies), 0)
@@ -584,59 +679,109 @@ function PostDetailComments({
     }
   }, [commentItems, highlightCommentId]);
 
-  const renderComment = (comment: Comment) => (
-    <li key={comment.commentId} id={`comment-${comment.commentId}`} className="post-detail__comment-item">
-      <div className="post-detail__comment-root">
-        <div className="post-detail__comment-avatar">
-          {comment.avatarUrl ? (
-            <img src={comment.avatarUrl} alt={comment.displayName || "User"} />
-          ) : (
-            <span>{comment.displayName?.charAt(0).toUpperCase() || "U"}</span>
-          )}
-        </div>
-        <div className="post-detail__comment-body">
-          <strong>{comment.displayName}</strong>
-          <p>{comment.content}</p>
-          <div className="post-detail__comment-actions">
-            <button
-              type="button"
-              className="post-detail__comment-like"
-              onClick={() => void onToggleCommentLike(comment.commentId, comment.likedByMe)}
-            >
-              {comment.likedByMe ? <FavoriteRoundedIcon /> : <FavoriteBorderRoundedIcon />}
-              {comment.likeCount}
-            </button>
-            <button
-              type="button"
-              className="post-detail__comment-reply"
-              onClick={() => toggleReplyBox(comment.commentId)}
-            >
-              Reply{comment.replyCount ? ` (${comment.replyCount})` : ""}
-            </button>
+  const renderComment = (comment: Comment) => {
+    const isEditing = editingCommentId === comment.commentId;
+    const canEdit = !!currentUsername && comment.username === currentUsername;
+    const canDelete = !!currentUsername
+      && (comment.username === currentUsername || currentUsername === postOwnerUsername);
+
+    return (
+      <li key={comment.commentId} id={`comment-${comment.commentId}`} className="post-detail__comment-item">
+        <div className="post-detail__comment-root">
+          <div className="post-detail__comment-avatar">
+            {comment.avatarUrl ? (
+              <img src={comment.avatarUrl} alt={comment.displayName || "User"} />
+            ) : (
+              <span>{comment.displayName?.charAt(0).toUpperCase() || "U"}</span>
+            )}
           </div>
-          {activeReplyId === comment.commentId ? (
-            <div className="post-detail__reply-box">
-              <input
-                value={replyDrafts[comment.commentId] ?? ""}
-                onChange={(event) => updateReplyDraft(comment.commentId, event.target.value)}
-                placeholder="Write a reply"
-              />
-              <button type="button" onClick={() => void onSubmitReply(comment.commentId)}>
-                Send
+          <div className="post-detail__comment-body">
+            <strong>{comment.displayName}</strong>
+            {isEditing ? (
+              <div className="post-detail__edit-box">
+                <input
+                  value={commentDrafts[comment.commentId] ?? ""}
+                  onChange={(event) => onUpdateCommentDraft(comment.commentId, event.target.value)}
+                  placeholder="Edit your comment"
+                />
+                <button
+                  type="button"
+                  className="post-detail__edit-save"
+                  onClick={() => void onSubmitEditComment(comment.commentId)}
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  className="post-detail__edit-cancel"
+                  onClick={onCancelEdit}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <p>{comment.content}</p>
+            )}
+            <div className="post-detail__comment-actions">
+              <button
+                type="button"
+                className="post-detail__comment-like"
+                onClick={() => void onToggleCommentLike(comment.commentId, comment.likedByMe)}
+              >
+                {comment.likedByMe ? <FavoriteRoundedIcon /> : <FavoriteBorderRoundedIcon />}
+                {comment.likeCount}
               </button>
+              <button
+                type="button"
+                className="post-detail__comment-reply"
+                onClick={() => toggleReplyBox(comment.commentId)}
+                disabled={isEditing}
+              >
+                Reply{comment.replyCount ? ` (${comment.replyCount})` : ""}
+              </button>
+              {canEdit && !isEditing ? (
+                <button
+                  type="button"
+                  className="post-detail__comment-edit"
+                  onClick={() => onStartEdit(comment)}
+                >
+                  Edit
+                </button>
+              ) : null}
+              {canDelete ? (
+                <button
+                  type="button"
+                  className="post-detail__comment-delete"
+                  onClick={() => void onDeleteComment(comment.commentId)}
+                >
+                  Delete
+                </button>
+              ) : null}
             </div>
-          ) : null}
+            {activeReplyId === comment.commentId && !isEditing ? (
+              <div className="post-detail__reply-box">
+                <input
+                  value={replyDrafts[comment.commentId] ?? ""}
+                  onChange={(event) => updateReplyDraft(comment.commentId, event.target.value)}
+                  placeholder="Write a reply"
+                />
+                <button type="button" onClick={() => void onSubmitReply(comment.commentId)}>
+                  Send
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
-      </div>
-      {comment.replies.length > 0 ? (
-        <div className="post-detail__comment-replies-wrap">
-          <ul className="post-detail__comment-replies">
-            {comment.replies.map(renderComment)}
-          </ul>
-        </div>
-      ) : null}
-    </li>
-  );
+        {comment.replies.length > 0 ? (
+          <div className="post-detail__comment-replies-wrap">
+            <ul className="post-detail__comment-replies">
+              {comment.replies.map(renderComment)}
+            </ul>
+          </div>
+        ) : null}
+      </li>
+    );
+  };
 
   return (
     <>
@@ -684,12 +829,21 @@ function PostDetailInfo({
   activeReplyId,
   toggleReplyBox,
   updateReplyDraft,
+  editingCommentId,
+  commentDrafts,
+  currentUsername,
+  postOwnerUsername,
+  onStartEdit,
+  onCancelEdit,
+  onUpdateCommentDraft,
   error,
   isLoading,
   onToggleLike,
   onToggleCommentLike,
   onSubmitComment,
   onSubmitReply,
+  onSubmitEditComment,
+  onDeleteComment,
   canEdit,
   onEdit,
   onDelete,
@@ -780,9 +934,18 @@ function PostDetailInfo({
             activeReplyId={activeReplyId}
             toggleReplyBox={toggleReplyBox}
             updateReplyDraft={updateReplyDraft}
+            editingCommentId={editingCommentId}
+            commentDrafts={commentDrafts}
+            currentUsername={currentUsername}
+            postOwnerUsername={postOwnerUsername}
+            onStartEdit={onStartEdit}
+            onCancelEdit={onCancelEdit}
+            onUpdateCommentDraft={onUpdateCommentDraft}
             onToggleCommentLike={onToggleCommentLike}
             onSubmitComment={onSubmitComment}
             onSubmitReply={onSubmitReply}
+            onSubmitEditComment={onSubmitEditComment}
+            onDeleteComment={onDeleteComment}
           />
         </>
       ) : (
@@ -805,10 +968,15 @@ function PostDetailView({ postId, model, onClose, highlightCommentId, canEdit, o
     commentsError,
     commentText,
     setCommentText,
+    editingCommentId,
+    commentDrafts,
     replyDrafts,
     activeReplyId,
     toggleReplyBox,
     updateReplyDraft,
+    startEditComment,
+    cancelEditComment,
+    updateCommentDraft,
     activeMedia,
     mediaItems,
     hasGallery,
@@ -822,6 +990,8 @@ function PostDetailView({ postId, model, onClose, highlightCommentId, canEdit, o
     toggleCommentLike,
     submitComment,
     submitReply,
+    submitEditComment,
+    deleteComment,
     goPrev,
     goNext,
     selectMedia,
@@ -865,12 +1035,21 @@ function PostDetailView({ postId, model, onClose, highlightCommentId, canEdit, o
           activeReplyId={activeReplyId}
           toggleReplyBox={toggleReplyBox}
           updateReplyDraft={updateReplyDraft}
+          editingCommentId={editingCommentId}
+          commentDrafts={commentDrafts}
+          currentUsername={model.currentUsername}
+          postOwnerUsername={model.postData?.username ?? null}
+          onStartEdit={startEditComment}
+          onCancelEdit={cancelEditComment}
+          onUpdateCommentDraft={updateCommentDraft}
           error={error}
           isLoading={isLoading}
           onToggleLike={toggleLike}
           onToggleCommentLike={toggleCommentLike}
           onSubmitComment={submitComment}
           onSubmitReply={submitReply}
+          onSubmitEditComment={submitEditComment}
+          onDeleteComment={deleteComment}
           canEdit={canEdit}
           onEdit={onEdit}
           onDelete={onDelete}

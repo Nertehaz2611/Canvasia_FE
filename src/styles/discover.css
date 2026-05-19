@@ -1652,7 +1652,9 @@
 }
 
 .post-detail__comment-like,
-.post-detail__comment-reply {
+.post-detail__comment-reply,
+.post-detail__comment-edit,
+.post-detail__comment-delete {
   border: 0;
   background: transparent;
   color: #cfcfcf;
@@ -1664,6 +1666,15 @@
   padding: 0;
 }
 
+.post-detail__comment-delete {
+  color: #f0a0a0;
+}
+
+.post-detail__comment-reply:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .post-detail__comment-like svg {
   font-size: 1rem;
 }
@@ -1672,6 +1683,43 @@
   display: flex;
   gap: 8px;
   margin-top: 8px;
+}
+
+.post-detail__edit-box {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.post-detail__edit-box input {
+  flex: 1;
+  min-width: 180px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #0f0f0f;
+  color: #fff;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+}
+
+.post-detail__edit-box button {
+  border: 0;
+  border-radius: 9px;
+  padding: 0 12px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.post-detail__edit-save {
+  background: #f0f0f0;
+  color: #0f0f0f;
+  font-weight: 700;
+}
+
+.post-detail__edit-cancel {
+  background: #262626;
+  color: #f0f0f0;
 }
 
 .post-detail__reply-box input {
