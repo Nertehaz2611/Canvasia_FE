@@ -36,6 +36,7 @@ function PostEditorModal({
   const [tagInput, setTagInput] = useState(post.tags.join(", "));
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [newFilePreviews, setNewFilePreviews] = useState<Array<{ file: File; url: string }>>([]);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const mediaItems = useMemo(() => post.media ?? [], [post.media]);
@@ -49,8 +50,27 @@ function PostEditorModal({
     setTagInput(post.tags.join(", "));
     setRemovedIds(new Set());
     setNewFiles([]);
+    setNewFilePreviews([]);
     setLocalError(null);
   }, [isOpen, post.caption, post.postId, post.tags]);
+
+  useEffect(() => {
+    if (newFiles.length === 0) {
+      setNewFilePreviews([]);
+      return;
+    }
+
+    const nextPreviews = newFiles.map((file) => ({
+      file,
+      url: URL.createObjectURL(file),
+    }));
+
+    setNewFilePreviews(nextPreviews);
+
+    return () => {
+      nextPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+    };
+  }, [newFiles]);
 
   if (!isOpen) {
     return null;
@@ -174,6 +194,15 @@ function PostEditorModal({
                 <span className="post-editor__upload-hint">No new files selected.</span>
               )}
             </div>
+            {newFilePreviews.length ? (
+              <div className="post-editor__media-grid">
+                {newFilePreviews.map((preview, index) => (
+                  <div key={`${preview.file.name}-${index}`} className="post-editor__media">
+                    <img src={preview.url} alt={`New upload ${preview.file.name}`} />
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           {localError ? <div className="post-editor__alert">{localError}</div> : null}

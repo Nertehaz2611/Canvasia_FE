@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import FavoriteBorderRoundedIcon from "@mui/icons-material/FavoriteBorderRounded";
 import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
 import {
@@ -688,15 +688,27 @@ function PostDetailComments({
     return (
       <li key={comment.commentId} id={`comment-${comment.commentId}`} className="post-detail__comment-item">
         <div className="post-detail__comment-root">
-          <div className="post-detail__comment-avatar">
-            {comment.avatarUrl ? (
-              <img src={comment.avatarUrl} alt={comment.displayName || "User"} />
-            ) : (
-              <span>{comment.displayName?.charAt(0).toUpperCase() || "U"}</span>
-            )}
-          </div>
+          <Link
+            to={`/${comment.username}`}
+            className="post-detail__comment-avatar-link"
+            aria-label={`Open profile for ${comment.displayName || comment.username}`}
+          >
+            <div className="post-detail__comment-avatar">
+              {comment.avatarUrl ? (
+                <img src={comment.avatarUrl} alt={comment.displayName || "User"} />
+              ) : (
+                <span>{comment.displayName?.charAt(0).toUpperCase() || "U"}</span>
+              )}
+            </div>
+          </Link>
           <div className="post-detail__comment-body">
-            <strong>{comment.displayName}</strong>
+            <Link
+              to={`/${comment.username}`}
+              className="post-detail__comment-author"
+              aria-label={`Open profile for ${comment.displayName || comment.username}`}
+            >
+              <strong>{comment.displayName}</strong>
+            </Link>
             {isEditing ? (
               <div className="post-detail__edit-box">
                 <input
@@ -860,17 +872,23 @@ function PostDetailInfo({
       {postData ? (
         <>
           <header className="post-detail__author">
-            <div className="post-detail__avatar">
-              {postData?.avatarUrl ? (
-                <img src={postData.avatarUrl} alt={displayName} />
-              ) : (
-                <span>{displayName.charAt(0).toUpperCase()}</span>
-              )}
-            </div>
-            <div>
-              <h3>{displayName}</h3>
-              <p>@{username} • {createdAt}</p>
-            </div>
+            <Link
+              to={`/${username}`}
+              className="post-detail__author-link"
+              aria-label={`Open profile for ${displayName}`}
+            >
+              <div className="post-detail__avatar">
+                {postData?.avatarUrl ? (
+                  <img src={postData.avatarUrl} alt={displayName} />
+                ) : (
+                  <span>{displayName.charAt(0).toUpperCase()}</span>
+                )}
+              </div>
+              <div>
+                <h3>{displayName}</h3>
+                <p>@{username} • {createdAt}</p>
+              </div>
+            </Link>
             {canEdit ? (
               <div className="post-detail__menu">
                 <details className="post-action-menu">

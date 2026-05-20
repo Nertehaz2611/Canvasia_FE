@@ -188,17 +188,23 @@ function PostsPage() {
             {posts.map((post) => (
               <article key={post.postId} className="post-card">
                 <div className="post-card__head">
-                  <div className="post-card__author-avatar">
-                    {post.avatarUrl ? (
-                      <img src={post.avatarUrl} alt={post.displayName || "User"} />
-                    ) : (
-                      <span>{(post.displayName || "U").charAt(0)}</span>
-                    )}
-                  </div>
-                  <div>
-                    <h3>{post.displayName}</h3>
-                    <p>@{post.username} • {formatDate(post.createdAt)}</p>
-                  </div>
+                  <Link
+                    to={`/${post.username}`}
+                    className="post-card__author-link"
+                    aria-label={`Open profile for ${post.displayName || post.username}`}
+                  >
+                    <div className="post-card__author-avatar">
+                      {post.avatarUrl ? (
+                        <img src={post.avatarUrl} alt={post.displayName || "User"} />
+                      ) : (
+                        <span>{(post.displayName || "U").charAt(0)}</span>
+                      )}
+                    </div>
+                    <div>
+                      <h3>{post.displayName}</h3>
+                      <p>@{post.username} • {formatDate(post.createdAt)}</p>
+                    </div>
+                  </Link>
                   {currentUsername && post.username === currentUsername ? (
                     <div className="post-card__menu">
                       <details className="post-action-menu">

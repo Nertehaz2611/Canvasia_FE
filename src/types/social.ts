@@ -111,12 +111,36 @@ export type LatestHashtagResponse = {
 export type Profile = {
   userId: string;
   username: string;
-  email: string;
+  email: string | null;
   displayName: string;
-  bio: string;
+  bio: string | null;
   avatarPublicId: string | null;
   avatarUrl: string | null;
-  website: string;
+  website: string | null;
+  followerCount: number;
+  followingCount: number;
+  isFollowing: boolean;
+};
+
+export type FollowUserItem = {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+};
+
+export type FollowUserFeedResponse = {
+  items: FollowUserItem[];
+  page: number;
+  size: number;
+  hasNext: boolean;
+};
+
+export type FollowStatusResponse = {
+  username: string;
+  followerCount: number;
+  followingCount: number;
+  isFollowing: boolean;
 };
 
 export type AvatarUploadResponse = {

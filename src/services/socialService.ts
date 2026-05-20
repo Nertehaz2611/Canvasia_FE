@@ -10,6 +10,8 @@ import type {
   UpdatePostInput,
   LatestDiscussionFeedResponse,
   LatestHashtagResponse,
+  FollowStatusResponse,
+  FollowUserFeedResponse,
   Post,
   PostFeedResponse,
   PostLikeResponse,
@@ -160,6 +162,35 @@ export async function unlikeComment(commentId: string): Promise<CommentLikeRespo
 
 export async function getMyProfile(): Promise<Profile> {
   const response = await api.get<Profile>("/profile/me");
+  return response.data;
+}
+
+export async function getUserProfile(username: string): Promise<Profile> {
+  const response = await api.get<Profile>(`/profile/users/${username}`);
+  return response.data;
+}
+
+export async function followUser(username: string): Promise<FollowStatusResponse> {
+  const response = await api.post<FollowStatusResponse>(`/follows/${username}`);
+  return response.data;
+}
+
+export async function unfollowUser(username: string): Promise<FollowStatusResponse> {
+  const response = await api.delete<FollowStatusResponse>(`/follows/${username}`);
+  return response.data;
+}
+
+export async function getFollowers(username: string, page = 0, size = 20): Promise<FollowUserFeedResponse> {
+  const response = await api.get<FollowUserFeedResponse>(`/follows/${username}/followers`, {
+    params: { page, size },
+  });
+  return response.data;
+}
+
+export async function getFollowing(username: string, page = 0, size = 20): Promise<FollowUserFeedResponse> {
+  const response = await api.get<FollowUserFeedResponse>(`/follows/${username}/following`, {
+    params: { page, size },
+  });
   return response.data;
 }
 

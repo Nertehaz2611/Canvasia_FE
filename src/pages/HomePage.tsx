@@ -11,13 +11,24 @@ import {
   getLatestDiscussions,
   getLatestHashtags,
   getMyProfile,
+  getFollowers,
+  getFollowing,
+  getUserProfile,
   getUserPosts,
+  followUser,
   likePost,
+  unfollowUser,
   updatePost,
   unlikePost,
 } from "../services/socialService";
 import { getErrorMessage } from "../utils/errorMessage";
-import type { LatestDiscussionItem, Post, Profile, UpdatePostInput } from "../types/social";
+import type {
+  FollowUserItem,
+  LatestDiscussionItem,
+  Post,
+  Profile,
+  UpdatePostInput,
+} from "../types/social";
 
 type HomeTab = "posts" | "media" | "portfolio";
 
@@ -44,9 +55,17 @@ function HomePage() {
   const { username: routeUsername } = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<HomeTab>("posts");
+  const [viewerProfile, setViewerProfile] = useState<Profile | null>(null);
+  const [viewerLoading, setViewerLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [followBusy, setFollowBusy] = useState(false);
+  const [followError, setFollowError] = useState<string | null>(null);
+  const [followListOpen, setFollowListOpen] = useState<"followers" | "following" | null>(null);
+  const [followListLoading, setFollowListLoading] = useState(false);
+  const [followListError, setFollowListError] = useState<string | null>(null);
+  const [followListItems, setFollowListItems] = useState<FollowUserItem[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [page, setPage] = useState(0);
   const [hasNext, setHasNext] = useState(false);
@@ -57,6 +76,7 @@ function HomePage() {
   const [caption, setCaption] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  const [mediaPreviews, setMediaPreviews] = useState<Array<{ file: File; url: string }>>([]);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [composerSuccess, setComposerSuccess] = useState<string | null>(null);
   const [composerBusy, setComposerBusy] = useState(false);
@@ -72,14 +92,64 @@ function HomePage() {
   useEffect(() => {
     let isMounted = true;
 
-    const loadProfile = async () => {
-      setProfileLoading(true);
+    const loadViewerProfile = async () => {
+      setViewerLoading(true);
       setProfileError(null);
 
       try {
         const response = await getMyProfile();
         if (isMounted) {
-          setProfile(response);
+          setViewerProfile(response);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setProfileError(getErrorMessage(error, "Cannot load profile"));
+        }
+      } finally {
+        if (isMounted) {
+          setViewerLoading(false);
+        }
+      }
+    };
+
+    void loadViewerProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!viewerProfile?.username) {
+      return;
+    }
+
+    if (!routeUsername) {
+      navigate(`/${viewerProfile.username}`, { replace: true });
+    }
+  }, [navigate, routeUsername, viewerProfile?.username]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadTargetProfile = async () => {
+      if (!viewerProfile?.username) {
+        return;
+      }
+
+      setProfileLoading(true);
+      setProfileError(null);
+
+      try {
+        if (!routeUsername || routeUsername === viewerProfile.username) {
+          if (isMounted) {
+            setProfile(viewerProfile);
+          }
+        } else {
+          const response = await getUserProfile(routeUsername);
+          if (isMounted) {
+            setProfile(response);
+          }
         }
       } catch (error) {
         if (isMounted) {
@@ -92,22 +162,12 @@ function HomePage() {
       }
     };
 
-    void loadProfile();
+    void loadTargetProfile();
 
     return () => {
       isMounted = false;
     };
-  }, []);
-
-  useEffect(() => {
-    if (!profile?.username) {
-      return;
-    }
-
-    if (!routeUsername || routeUsername !== profile.username) {
-      navigate(`/${profile.username}`, { replace: true });
-    }
-  }, [navigate, profile?.username, routeUsername]);
+  }, [routeUsername, viewerProfile]);
 
   const loadPosts = async (targetPage = 0, replace = false) => {
     if (!profile?.username) {
@@ -161,6 +221,24 @@ function HomePage() {
     void loadSidebar();
   }, []);
 
+  useEffect(() => {
+    if (mediaFiles.length === 0) {
+      setMediaPreviews([]);
+      return;
+    }
+
+    const nextPreviews = mediaFiles.map((file) => ({
+      file,
+      url: URL.createObjectURL(file),
+    }));
+
+    setMediaPreviews(nextPreviews);
+
+    return () => {
+      nextPreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+    };
+  }, [mediaFiles]);
+
   const mediaItems = useMemo(() => (
     posts.flatMap((post) => post.media.map((media) => ({
       postId: post.postId,
@@ -175,11 +253,14 @@ function HomePage() {
   const usernameLabel = profile?.username ? `@${profile.username}` : "@user";
   const websiteLabel = profile?.website?.trim();
   const bio = profile?.bio?.trim() || "Share what you are creating and build your portfolio.";
+  const isOwnProfile = !!viewerProfile?.username && profile?.username === viewerProfile.username;
+  const followerCount = profile?.followerCount ?? 0;
+  const followingCount = profile?.followingCount ?? 0;
 
   const submitPost = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!profile?.username) {
+    if (!viewerProfile?.username) {
       return;
     }
 
@@ -202,6 +283,7 @@ function HomePage() {
       setCaption("");
       setTagInput("");
       setMediaFiles([]);
+      setMediaPreviews([]);
       setComposerSuccess("Post published.");
       await loadPosts(0, true);
     } catch (error) {
@@ -243,6 +325,20 @@ function HomePage() {
     setDeleteOpen(true);
   };
 
+  const removeMediaFile = (index: number) => {
+    setMediaFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+  };
+
+  const handleMediaSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) {
+      return;
+    }
+
+    setMediaFiles((prev) => [...prev, ...files]);
+    event.target.value = "";
+  };
+
   const handleUpdate = async (input: UpdatePostInput) => {
     setEditBusy(true);
     setEditError(null);
@@ -279,6 +375,60 @@ function HomePage() {
     }
   };
 
+  const handleFollowToggle = async () => {
+    if (!profile?.username || isOwnProfile) {
+      return;
+    }
+
+    setFollowBusy(true);
+    setFollowError(null);
+
+    try {
+      const response = profile.isFollowing
+        ? await unfollowUser(profile.username)
+        : await followUser(profile.username);
+      setProfile((prev) => (prev
+        ? {
+          ...prev,
+          followerCount: response.followerCount,
+          followingCount: response.followingCount,
+          isFollowing: response.isFollowing,
+        }
+        : prev
+      ));
+    } catch (error) {
+      setFollowError(getErrorMessage(error, "Cannot update follow"));
+    } finally {
+      setFollowBusy(false);
+    }
+  };
+
+  const openFollowList = async (mode: "followers" | "following") => {
+    if (!profile?.username) {
+      return;
+    }
+
+    setFollowListOpen(mode);
+    setFollowListLoading(true);
+    setFollowListError(null);
+    setFollowListItems([]);
+
+    try {
+      const response = mode === "followers"
+        ? await getFollowers(profile.username, 0, 20)
+        : await getFollowing(profile.username, 0, 20);
+      setFollowListItems(response.items);
+    } catch (error) {
+      setFollowListError(getErrorMessage(error, "Cannot load list"));
+    } finally {
+      setFollowListLoading(false);
+    }
+  };
+
+  const closeFollowList = () => {
+    setFollowListOpen(null);
+  };
+
   return (
     <section className="profile-home">
       {profileError ? <div className="discover-alert discover-alert--error">{profileError}</div> : null}
@@ -297,14 +447,31 @@ function HomePage() {
               <h2>{displayName}</h2>
               <p>{usernameLabel}</p>
             </div>
-            <button
-              type="button"
-              className="profile-hero__edit"
-              onClick={() => navigate("/profile")}
-            >
-              Edit profile
-            </button>
+            {isOwnProfile ? (
+              <button
+                type="button"
+                className="profile-hero__edit"
+                onClick={() => navigate("/profile")}
+              >
+                Edit profile
+              </button>
+            ) : (
+              <div className="profile-hero__actions">
+                <button
+                  type="button"
+                  className="profile-hero__action"
+                  onClick={() => void handleFollowToggle()}
+                  disabled={followBusy}
+                >
+                  {followBusy ? "Updating..." : profile?.isFollowing ? "Unfollow" : "Follow"}
+                </button>
+                <button type="button" className="profile-hero__action">
+                  Message
+                </button>
+              </div>
+            )}
           </div>
+          {followError ? <div className="profile-hero__error">{followError}</div> : null}
           <p className="profile-hero__bio">{bio}</p>
           {websiteLabel ? (
             <a className="profile-hero__website" href={websiteLabel} target="_blank" rel="noreferrer">
@@ -316,14 +483,22 @@ function HomePage() {
               <strong>{posts.length}</strong>
               <span>Posts</span>
             </div>
-            <div>
-              <strong>0</strong>
+            <button
+              type="button"
+              className="profile-hero__stat"
+              onClick={() => void openFollowList("following")}
+            >
+              <strong>{followingCount}</strong>
               <span>Following</span>
-            </div>
-            <div>
-              <strong>0</strong>
+            </button>
+            <button
+              type="button"
+              className="profile-hero__stat"
+              onClick={() => void openFollowList("followers")}
+            >
+              <strong>{followerCount}</strong>
               <span>Followers</span>
-            </div>
+            </button>
           </div>
         </div>
       </div>
@@ -367,7 +542,7 @@ function HomePage() {
                   <h3>Share your latest work</h3>
                   <p>Post artwork, sketches, or concepts to your feed.</p>
                 </div>
-                <button type="submit" disabled={composerBusy || profileLoading}>
+                <button type="submit" disabled={composerBusy || viewerLoading}>
                   {composerBusy ? "Posting..." : "Post"}
                 </button>
               </div>
@@ -393,11 +568,28 @@ function HomePage() {
                     type="file"
                     accept="image/*"
                     multiple
-                    onChange={(event) => setMediaFiles(Array.from(event.target.files ?? []))}
+                    onChange={handleMediaSelect}
                   />
                   <span>{mediaFiles.length ? `${mediaFiles.length} files` : "Add media"}</span>
                 </label>
               </div>
+              {mediaPreviews.length ? (
+                <div className="profile-composer__preview">
+                  {mediaPreviews.map((preview, index) => (
+                    <div key={`${preview.file.name}-${index}`} className="profile-composer__preview-item">
+                      <button
+                        type="button"
+                        className="profile-composer__preview-remove"
+                        aria-label={`Remove ${preview.file.name}`}
+                        onClick={() => removeMediaFile(index)}
+                      >
+                        x
+                      </button>
+                      <img src={preview.url} alt={`Selected ${preview.file.name}`} />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </form>
 
             {postsError ? <div className="discover-alert discover-alert--error">{postsError}</div> : null}
@@ -410,17 +602,23 @@ function HomePage() {
               {posts.map((post) => (
                 <article key={post.postId} className="post-card">
                   <div className="post-card__head">
-                    <div className="post-card__author-avatar">
-                      {post.avatarUrl ? (
-                        <img src={post.avatarUrl} alt={post.displayName || "User"} />
-                      ) : (
-                        <span>{(post.displayName || "U").charAt(0)}</span>
-                      )}
-                    </div>
-                    <div>
-                      <h3>{post.displayName}</h3>
-                      <p>@{post.username} • {formatDate(post.createdAt)}</p>
-                    </div>
+                    <Link
+                      to={`/${post.username}`}
+                      className="post-card__author-link"
+                      aria-label={`Open profile for ${post.displayName || post.username}`}
+                    >
+                      <div className="post-card__author-avatar">
+                        {post.avatarUrl ? (
+                          <img src={post.avatarUrl} alt={post.displayName || "User"} />
+                        ) : (
+                          <span>{(post.displayName || "U").charAt(0)}</span>
+                        )}
+                      </div>
+                      <div>
+                        <h3>{post.displayName}</h3>
+                        <p>@{post.username} • {formatDate(post.createdAt)}</p>
+                      </div>
+                    </Link>
                     {profile?.username && post.username === profile.username ? (
                       <div className="post-card__menu">
                         <details className="post-action-menu">
@@ -603,6 +801,52 @@ function HomePage() {
                 {deleteBusy ? "Deleting..." : "Delete"}
               </button>
             </div>
+          </div>
+        </dialog>
+      ) : null}
+      {followListOpen ? (
+        <dialog className="follow-list" open>
+          <button
+            type="button"
+            className="follow-list__backdrop"
+            aria-label="Close follow list"
+            onClick={closeFollowList}
+          />
+          <div className="follow-list__card">
+            <div className="follow-list__header">
+              <h3>{followListOpen === "followers" ? "Followers" : "Following"}</h3>
+              <button type="button" onClick={closeFollowList}>
+                Close
+              </button>
+            </div>
+            {followListLoading ? <p>Loading...</p> : null}
+            {followListError ? <p className="follow-list__error">{followListError}</p> : null}
+            {!followListLoading && followListItems.length === 0 ? (
+              <p className="follow-list__empty">No users yet.</p>
+            ) : null}
+            <ul className="follow-list__items">
+              {followListItems.map((item) => (
+                <li key={item.userId}>
+                  <Link
+                    to={`/${item.username}`}
+                    className="follow-list__item"
+                    onClick={closeFollowList}
+                  >
+                    <div className="follow-list__avatar">
+                      {item.avatarUrl ? (
+                        <img src={item.avatarUrl} alt={item.displayName || "User"} />
+                      ) : (
+                        <span>{(item.displayName || "U").charAt(0)}</span>
+                      )}
+                    </div>
+                    <div className="follow-list__meta">
+                      <strong>{item.displayName}</strong>
+                      <span>@{item.username}</span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </div>
         </dialog>
       ) : null}
