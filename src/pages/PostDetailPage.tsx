@@ -8,6 +8,7 @@ import {
   deletePost,
   getComments,
   getDiscoverPosts,
+  getPostById,
   getMyProfile,
   likeComment,
   likePost,
@@ -192,6 +193,11 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
           foundPost = response.items.find((item) => item.postId === postId) ?? null;
           cursor = response.nextCursor;
           hasNext = response.hasNext;
+        }
+
+        if (!foundPost) {
+          const directPost = await getPostById(postId);
+          foundPost = directPost;
         }
 
         if (isMounted) {

@@ -32,6 +32,11 @@ export async function getDiscoverPosts(limit = 10, cursor?: string | null, tag?:
   return response.data;
 }
 
+export async function getPostById(postId: string): Promise<Post> {
+  const response = await api.get<Post>(`/posts/${postId}`);
+  return response.data;
+}
+
 export async function getDiscoverThumbnails(limit = 50, cursor?: string | null): Promise<CursorThumbnailFeedResponse> {
   const response = await api.get<CursorThumbnailFeedResponse>("/discover/thumbnails", {
     params: {
@@ -219,6 +224,13 @@ export async function uploadAvatar(avatarFile: File): Promise<AvatarUploadRespon
 
 export async function getUserPosts(username: string, page = 0, size = 10): Promise<PostFeedResponse> {
   const response = await api.get<PostFeedResponse>(`/posts/users/${username}`, {
+    params: { page, size },
+  });
+  return response.data;
+}
+
+export async function getPendingPosts(page = 0, size = 10): Promise<PostFeedResponse> {
+  const response = await api.get<PostFeedResponse>("/posts/pending", {
     params: { page, size },
   });
   return response.data;

@@ -20,6 +20,7 @@ export type Post = {
   commentCount: number;
   likeCount: number;
   likedByMe: boolean;
+  isPending: boolean;
 };
 
 export type CursorPostFeedResponse = {

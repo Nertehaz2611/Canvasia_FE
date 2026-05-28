@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { MediaItem, Post, UpdatePostInput } from "../../types/social";
+import { compressImageFiles } from "../../utils/imageCompression";
 
 const EMPTY_ERROR = "A post must contain at least one image.";
 
@@ -102,13 +103,14 @@ function PostEditorModal({
       return;
     }
 
+    const optimizedFiles = await compressImageFiles(newFiles);
     await onSubmit({
       postId: post.postId,
       caption,
       tags: parseTags(tagInput),
       deleteMediaIds,
       replaceMedia: [],
-      newFiles,
+      newFiles: optimizedFiles,
     });
   };
 

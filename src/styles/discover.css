@@ -1673,6 +1673,11 @@
   min-width: 0;
 }
 
+.profile-posts__main .discover-alert {
+  width: 100%;
+  margin: 0;
+}
+
 .profile-posts__sidebar {
   display: flex;
   flex-direction: column;

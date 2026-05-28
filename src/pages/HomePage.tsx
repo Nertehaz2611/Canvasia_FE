@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type SyntheticEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import FavoriteBorderRoundedIcon from "@mui/icons-material/FavoriteBorderRounded";
 import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
@@ -13,6 +13,7 @@ import {
   getMyProfile,
   getFollowers,
   getFollowing,
+  getPendingPosts,
   getUserProfile,
   getUserPosts,
   followUser,
@@ -22,6 +23,7 @@ import {
   unlikePost,
 } from "../services/socialService";
 import { getErrorMessage } from "../utils/errorMessage";
+import { compressImageFiles } from "../utils/imageCompression";
 import type {
   FollowUserItem,
   LatestDiscussionItem,
@@ -30,7 +32,7 @@ import type {
   UpdatePostInput,
 } from "../types/social";
 
-type HomeTab = "posts" | "media" | "portfolio";
+type HomeTab = "posts" | "media" | "portfolio" | "pending";
 
 const DEFAULT_PAGE_SIZE = 6;
 
@@ -51,6 +53,7 @@ function parseTags(raw: string): string[] {
     .filter(Boolean);
 }
 
+// eslint-disable-next-line sonarjs/cognitive-complexity
 function HomePage() {
   const { username: routeUsername } = useParams();
   const navigate = useNavigate();
@@ -71,6 +74,14 @@ function HomePage() {
   const [hasNext, setHasNext] = useState(false);
   const [postsLoading, setPostsLoading] = useState(false);
   const [postsError, setPostsError] = useState<string | null>(null);
+  const [pendingPosts, setPendingPosts] = useState<Post[]>([]);
+  const [pendingPage, setPendingPage] = useState(0);
+  const [pendingHasNext, setPendingHasNext] = useState(false);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [pendingError, setPendingError] = useState<string | null>(null);
+  const [pendingNotice, setPendingNotice] = useState<string | null>(null);
+  const lastPendingIdsRef = useRef<Set<string>>(new Set());
+  const pendingKeyRef = useRef<string>("");
   const [latestDiscussions, setLatestDiscussions] = useState<LatestDiscussionItem[]>([]);
   const [latestHashtags, setLatestHashtags] = useState<string[]>([]);
   const [caption, setCaption] = useState("");
@@ -88,6 +99,21 @@ function HomePage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
+
+  const displayName = profile?.displayName || profile?.username || "Your profile";
+  const initial = displayName.charAt(0).toUpperCase();
+  const usernameLabel = profile?.username ? `@${profile.username}` : "@user";
+  const websiteLabel = profile?.website?.trim();
+  const bio = profile?.bio?.trim() || "Share what you are creating and build your portfolio.";
+  const isOwnProfile = !!viewerProfile?.username && profile?.username === viewerProfile.username;
+  const followerCount = profile?.followerCount ?? 0;
+  const followingCount = profile?.followingCount ?? 0;
+  let followLabel = "Follow";
+  if (followBusy) {
+    followLabel = "Updating...";
+  } else if (profile?.isFollowing) {
+    followLabel = "Unfollow";
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -189,6 +215,26 @@ function HomePage() {
     }
   };
 
+  const loadPendingPosts = async (targetPage = 0, replace = false) => {
+    if (!isOwnProfile) {
+      return;
+    }
+
+    setPendingLoading(true);
+    setPendingError(null);
+
+    try {
+      const response = await getPendingPosts(targetPage, DEFAULT_PAGE_SIZE);
+      setPendingPosts((prev) => (replace ? response.items : [...prev, ...response.items]));
+      setPendingPage(response.page);
+      setPendingHasNext(response.hasNext);
+    } catch (error) {
+      setPendingError(getErrorMessage(error, "Cannot load pending posts"));
+    } finally {
+      setPendingLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!profile?.username) {
       return;
@@ -197,6 +243,21 @@ function HomePage() {
     void loadPosts(0, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.username]);
+
+  useEffect(() => {
+    if (!profile?.username || !isOwnProfile || activeTab !== "pending") {
+      return;
+    }
+
+    void loadPendingPosts(0, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, isOwnProfile, profile?.username]);
+
+  useEffect(() => {
+    if (activeTab === "pending") {
+      setPendingNotice(null);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     const loadSidebar = async () => {
@@ -248,16 +309,62 @@ function HomePage() {
     })))
   ), [posts]);
 
-  const displayName = profile?.displayName || profile?.username || "Your profile";
-  const initial = displayName.charAt(0).toUpperCase();
-  const usernameLabel = profile?.username ? `@${profile.username}` : "@user";
-  const websiteLabel = profile?.website?.trim();
-  const bio = profile?.bio?.trim() || "Share what you are creating and build your portfolio.";
-  const isOwnProfile = !!viewerProfile?.username && profile?.username === viewerProfile.username;
-  const followerCount = profile?.followerCount ?? 0;
-  const followingCount = profile?.followingCount ?? 0;
+  useEffect(() => {
+    if (!isOwnProfile && activeTab === "pending") {
+      setActiveTab("posts");
+    }
+  }, [activeTab, isOwnProfile]);
 
-  const submitPost = async (event: FormEvent<HTMLFormElement>) => {
+  const refreshPending = useCallback(async () => {
+    if (!isOwnProfile) {
+      return;
+    }
+
+    try {
+      const response = await getPendingPosts(0, DEFAULT_PAGE_SIZE);
+      const pendingIds = new Set(response.items.map((item) => item.postId));
+      const pendingKey = Array.from(pendingIds).sort().join(",");
+      const previousIds = lastPendingIdsRef.current;
+      const newPending = response.items.some((item) => !previousIds.has(item.postId));
+
+      let dismissedKey = "";
+      try {
+        dismissedKey = localStorage.getItem("canvasia.pending.dismissed") ?? "";
+      } catch {
+        dismissedKey = "";
+      }
+
+      if (newPending && pendingKey && pendingKey != dismissedKey) {
+        setPendingNotice("Some posts were flagged and moved to Pending.");
+      }
+
+      lastPendingIdsRef.current = pendingIds;
+      pendingKeyRef.current = pendingKey;
+      setPendingPosts(response.items);
+      setPendingPage(response.page);
+      setPendingHasNext(response.hasNext);
+      setPosts((prev) => prev.filter((item) => !pendingIds.has(item.postId)));
+    } catch {
+      setPendingError("Cannot load pending posts");
+    }
+  }, [isOwnProfile]);
+
+  useEffect(() => {
+    if (!isOwnProfile) {
+      return;
+    }
+
+    void refreshPending();
+    const intervalId = globalThis.setInterval(() => {
+      void refreshPending();
+    }, 30000);
+
+    return () => {
+      globalThis.clearInterval(intervalId);
+    };
+  }, [isOwnProfile, refreshPending]);
+
+  const submitPost = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!viewerProfile?.username) {
@@ -275,10 +382,11 @@ function HomePage() {
     setComposerSuccess(null);
 
     try {
+      const optimizedFiles = await compressImageFiles(mediaFiles);
       await createPost({
         caption: caption.trim(),
         tags: parseTags(tagInput),
-        mediaFiles,
+        mediaFiles: optimizedFiles,
       });
       setCaption("");
       setTagInput("");
@@ -463,7 +571,7 @@ function HomePage() {
                   onClick={() => void handleFollowToggle()}
                   disabled={followBusy}
                 >
-                  {followBusy ? "Updating..." : profile?.isFollowing ? "Unfollow" : "Follow"}
+                  {followLabel}
                 </button>
                 <button type="button" className="profile-hero__action">
                   Message
@@ -531,11 +639,42 @@ function HomePage() {
         >
           Portfolio
         </button>
+        {isOwnProfile ? (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "pending"}
+            className={activeTab === "pending" ? "profile-tab profile-tab--active" : "profile-tab"}
+            onClick={() => setActiveTab("pending")}
+          >
+            Pending
+          </button>
+        ) : null}
       </div>
 
       {activeTab === "posts" ? (
         <div className="profile-posts">
           <div className="profile-posts__main">
+            {pendingNotice ? (
+              <div className="discover-alert discover-alert--error">
+                {pendingNotice}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingNotice(null);
+                    try {
+                      if (pendingKeyRef.current) {
+                        localStorage.setItem("canvasia.pending.dismissed", pendingKeyRef.current);
+                      }
+                    } catch {
+                      return;
+                    }
+                  }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            ) : null}
             <form className="profile-composer" onSubmit={(event) => void submitPost(event)}>
               <div className="profile-composer__header">
                 <div>
@@ -769,6 +908,95 @@ function HomePage() {
       {activeTab === "portfolio" ? (
         <div className="profile-portfolio">
           In development
+        </div>
+      ) : null}
+      {activeTab === "pending" && isOwnProfile ? (
+        <div className="profile-posts">
+          <div className="profile-posts__main">
+            {pendingError ? <div className="discover-alert discover-alert--error">{pendingError}</div> : null}
+
+            <div className="post-feed">
+              {pendingPosts.length === 0 && !pendingLoading ? (
+                <div className="profile-empty">No pending posts right now.</div>
+              ) : null}
+
+              {pendingPosts.map((post) => (
+                <article key={post.postId} className="post-card">
+                  <div className="post-card__head">
+                    <Link
+                      to={`/${post.username}`}
+                      className="post-card__author-link"
+                      aria-label={`Open profile for ${post.displayName || post.username}`}
+                    >
+                      <div className="post-card__author-avatar">
+                        {post.avatarUrl ? (
+                          <img src={post.avatarUrl} alt={post.displayName || "User"} />
+                        ) : (
+                          <span>{(post.displayName || "U").charAt(0)}</span>
+                        )}
+                      </div>
+                      <div>
+                        <h3>{post.displayName}</h3>
+                        <p>@{post.username} • {formatDate(post.createdAt)}</p>
+                      </div>
+                    </Link>
+                    <div className="post-card__menu">
+                      <details className="post-action-menu">
+                        <summary aria-label="Post options">
+                          <span aria-hidden="true">...</span>
+                        </summary>
+                        <div className="post-action-menu__list" role="menu">
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="post-action-menu__danger"
+                            onClick={(event) => {
+                              closeActionMenu(event);
+                              openDelete(post);
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </details>
+                    </div>
+                  </div>
+
+                  {post.caption ? <p className="post-card__caption">{post.caption}</p> : null}
+
+                  <Link
+                    to={`/posts/${post.postId}`}
+                    state={{ post, initialMediaIndex: 0 }}
+                    className="post-card__media-link"
+                    aria-label="Open post detail"
+                  >
+                    <PostCardMedia
+                      postId={post.postId}
+                      caption={post.caption}
+                      media={post.media}
+                    />
+                  </Link>
+
+                  {post.tags.length ? (
+                    <div className="post-card__tags">
+                      {post.tags.map((tag) => (
+                        <span key={`${post.postId}-${tag}`}>#{normalizeTag(tag)}</span>
+                      ))}
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+
+            <div className="discover-actions">
+              {pendingLoading ? <span>Loading...</span> : null}
+              {!pendingLoading && pendingHasNext ? (
+                <button type="button" onClick={() => void loadPendingPosts(pendingPage + 1, false)}>
+                  Load more
+                </button>
+              ) : null}
+            </div>
+          </div>
         </div>
       ) : null}
       {editOpen && editPost ? (
