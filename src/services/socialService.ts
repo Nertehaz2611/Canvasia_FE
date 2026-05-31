@@ -12,6 +12,8 @@ import type {
   LatestHashtagResponse,
   FollowStatusResponse,
   FollowUserFeedResponse,
+  MediaListResponse,
+  Portfolio,
   Post,
   PostFeedResponse,
   PostLikeResponse,
@@ -231,6 +233,51 @@ export async function getUserPosts(username: string, page = 0, size = 10): Promi
 
 export async function getPendingPosts(page = 0, size = 10): Promise<PostFeedResponse> {
   const response = await api.get<PostFeedResponse>("/posts/pending", {
+    params: { page, size },
+  });
+  return response.data;
+}
+
+// ── Portfolio ─────────────────────────────────────────────────────────────────
+
+export async function getMyPortfolios(): Promise<Portfolio[]> {
+  const response = await api.get<Portfolio[]>("/portfolios/my");
+  return response.data;
+}
+
+export async function getPortfoliosByUsername(username: string): Promise<Portfolio[]> {
+  const response = await api.get<Portfolio[]>(`/portfolios/users/${username}`);
+  return response.data;
+}
+
+export async function createPortfolio(name: string): Promise<Portfolio> {
+  const response = await api.post<Portfolio>("/portfolios", { name });
+  return response.data;
+}
+
+export async function deletePortfolio(portfolioId: string): Promise<void> {
+  await api.delete(`/portfolios/${portfolioId}`);
+}
+
+export async function addMediaToPortfolio(portfolioId: string, mediaId: string): Promise<void> {
+  await api.post(`/portfolios/${portfolioId}/media/${mediaId}`);
+}
+
+export async function removeMediaFromPortfolio(portfolioId: string, mediaId: string): Promise<void> {
+  await api.delete(`/portfolios/${portfolioId}/media/${mediaId}`);
+}
+
+// ── Media ─────────────────────────────────────────────────────────────────────
+
+export async function getUserMedia(username: string, page = 0, size = 100): Promise<MediaListResponse> {
+  const response = await api.get<MediaListResponse>(`/media/users/${username}`, {
+    params: { page, size },
+  });
+  return response.data;
+}
+
+export async function getPortfolioMedia(portfolioId: string, page = 0, size = 100): Promise<MediaListResponse> {
+  const response = await api.get<MediaListResponse>(`/media/portfolios/${portfolioId}`, {
     params: { page, size },
   });
   return response.data;

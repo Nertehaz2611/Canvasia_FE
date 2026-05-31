@@ -22,6 +22,14 @@ import {
   unfollowUser,
   updatePost,
   unlikePost,
+  getMyPortfolios,
+  getPortfoliosByUsername,
+  createPortfolio,
+  deletePortfolio,
+  addMediaToPortfolio,
+  removeMediaFromPortfolio,
+  getUserMedia,
+  getPortfolioMedia,
 } from "../services/socialService";
 import { getOrCreateConversation } from "../services/messageService";
 import { getErrorMessage } from "../utils/errorMessage";
@@ -29,6 +37,8 @@ import { compressImageFiles } from "../utils/imageCompression";
 import type {
   FollowUserItem,
   LatestDiscussionItem,
+  MediaListItem,
+  Portfolio,
   Post,
   Profile,
   UpdatePostInput,
@@ -102,6 +112,26 @@ function HomePage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
   const [messageBusy, setMessageBusy] = useState(false);
+
+  // portfolio state
+  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
+  const [portfoliosLoading, setPortfoliosLoading] = useState(false);
+  const [portfoliosError, setPortfoliosError] = useState<string | null>(null);
+  const [selectedPortfolio, setSelectedPortfolio] = useState<Portfolio | null>(null);
+  const [portfolioMedia, setPortfolioMedia] = useState<MediaListItem[]>([]);
+  const [portfolioMediaLoading, setPortfolioMediaLoading] = useState(false);
+  const [portfolioMediaError, setPortfolioMediaError] = useState<string | null>(null);
+  const [createPortfolioOpen, setCreatePortfolioOpen] = useState(false);
+  const [createPortfolioName, setCreatePortfolioName] = useState("");
+  const [createPortfolioBusy, setCreatePortfolioBusy] = useState(false);
+  const [createPortfolioError, setCreatePortfolioError] = useState<string | null>(null);
+  const [deletePortfolioTarget, setDeletePortfolioTarget] = useState<Portfolio | null>(null);
+  const [deletePortfolioBusy, setDeletePortfolioBusy] = useState(false);
+  const [addMediaOpen, setAddMediaOpen] = useState(false);
+  const [userMediaForPicker, setUserMediaForPicker] = useState<MediaListItem[]>([]);
+  const [userMediaPickerLoading, setUserMediaPickerLoading] = useState(false);
+  const [portfolioMediaIds, setPortfolioMediaIds] = useState<Set<string>>(new Set());
+  const [mediaToggleBusy, setMediaToggleBusy] = useState<Set<string>>(new Set());
 
   const displayName = profile?.displayName || profile?.username || "Your profile";
   const initial = displayName.charAt(0).toUpperCase();
@@ -303,6 +333,81 @@ function HomePage() {
     };
   }, [mediaFiles]);
 
+  // load portfolios when portfolio tab becomes active
+  useEffect(() => {
+    if (activeTab !== "portfolio" || !profile?.username) {
+      return;
+    }
+
+    let isMounted = true;
+    setPortfoliosLoading(true);
+    setPortfoliosError(null);
+
+    const load = async () => {
+      try {
+        const list = isOwnProfile
+          ? await getMyPortfolios()
+          : await getPortfoliosByUsername(profile.username);
+        if (isMounted) {
+          setPortfolios(list);
+          setSelectedPortfolio(null);
+          setPortfolioMedia([]);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setPortfoliosError(getErrorMessage(err, "Cannot load portfolios"));
+        }
+      } finally {
+        if (isMounted) {
+          setPortfoliosLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      isMounted = false;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, profile?.username, isOwnProfile]);
+
+  // load media for the selected portfolio
+  useEffect(() => {
+    if (!selectedPortfolio) {
+      setPortfolioMedia([]);
+      return;
+    }
+
+    let isMounted = true;
+    setPortfolioMediaLoading(true);
+    setPortfolioMediaError(null);
+
+    const load = async () => {
+      try {
+        const result = await getPortfolioMedia(selectedPortfolio.portfolioId);
+        if (isMounted) {
+          setPortfolioMedia(result.items);
+          setPortfolioMediaIds(new Set(result.items.map((m) => m.mediaId)));
+        }
+      } catch (err) {
+        if (isMounted) {
+          setPortfolioMediaError(getErrorMessage(err, "Cannot load portfolio media"));
+        }
+      } finally {
+        if (isMounted) {
+          setPortfolioMediaLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedPortfolio]);
+
   const mediaItems = useMemo(() => (
     posts.flatMap((post) => post.media.map((media) => ({
       postId: post.postId,
@@ -326,7 +431,7 @@ function HomePage() {
     try {
       const response = await getPendingPosts(0, DEFAULT_PAGE_SIZE);
       const pendingIds = new Set(response.items.map((item) => item.postId));
-      const pendingKey = Array.from(pendingIds).sort().join(",");
+      const pendingKey = Array.from(pendingIds).sort((a, b) => a.localeCompare(b)).join(",");
       const previousIds = lastPendingIdsRef.current;
       const newPending = response.items.some((item) => !previousIds.has(item.postId));
 
@@ -539,6 +644,106 @@ function HomePage() {
 
   const closeFollowList = () => {
     setFollowListOpen(null);
+  };
+
+  const handleCreatePortfolio = async () => {
+    const trimmed = createPortfolioName.trim();
+    if (!trimmed) {
+      setCreatePortfolioError("Portfolio name is required.");
+      return;
+    }
+
+    setCreatePortfolioBusy(true);
+    setCreatePortfolioError(null);
+
+    try {
+      const newPortfolio = await createPortfolio(trimmed);
+      setPortfolios((prev) => [...prev, newPortfolio]);
+      setCreatePortfolioName("");
+      setCreatePortfolioOpen(false);
+    } catch (err) {
+      setCreatePortfolioError(getErrorMessage(err, "Cannot create portfolio"));
+    } finally {
+      setCreatePortfolioBusy(false);
+    }
+  };
+
+  const handleDeletePortfolio = async () => {
+    if (!deletePortfolioTarget) return;
+
+    setDeletePortfolioBusy(true);
+    try {
+      await deletePortfolio(deletePortfolioTarget.portfolioId);
+      setPortfolios((prev) => prev.filter((p) => p.portfolioId !== deletePortfolioTarget.portfolioId));
+      if (selectedPortfolio?.portfolioId === deletePortfolioTarget.portfolioId) {
+        setSelectedPortfolio(null);
+      }
+      setDeletePortfolioTarget(null);
+    } catch (err) {
+      setPortfoliosError(getErrorMessage(err, "Cannot delete portfolio"));
+      setDeletePortfolioTarget(null);
+    } finally {
+      setDeletePortfolioBusy(false);
+    }
+  };
+
+  const openAddMediaDialog = async () => {
+    if (!profile?.username || !selectedPortfolio) return;
+
+    setAddMediaOpen(true);
+    setUserMediaPickerLoading(true);
+
+    try {
+      const result = await getUserMedia(profile.username);
+      setUserMediaForPicker(result.items);
+    } catch {
+      setUserMediaForPicker([]);
+    } finally {
+      setUserMediaPickerLoading(false);
+    }
+  };
+
+  const toggleMediaInPortfolio = async (mediaId: string) => {
+    if (!selectedPortfolio || mediaToggleBusy.has(mediaId)) return;
+
+    setMediaToggleBusy((prev) => new Set(prev).add(mediaId));
+
+    try {
+      if (portfolioMediaIds.has(mediaId)) {
+        await removeMediaFromPortfolio(selectedPortfolio.portfolioId, mediaId);
+        setPortfolioMediaIds((prev) => {
+          const next = new Set(prev);
+          next.delete(mediaId);
+          return next;
+        });
+        setPortfolioMedia((prev) => prev.filter((m) => m.mediaId !== mediaId));
+        setPortfolios((prev) => prev.map((p) =>
+          p.portfolioId === selectedPortfolio.portfolioId
+            ? { ...p, mediaCount: Math.max(0, p.mediaCount - 1) }
+            : p
+        ));
+      } else {
+        await addMediaToPortfolio(selectedPortfolio.portfolioId, mediaId);
+        setPortfolioMediaIds((prev) => new Set(prev).add(mediaId));
+        const added = userMediaForPicker.find((m) => m.mediaId === mediaId);
+        if (added) {
+          setPortfolioMedia((prev) => [...prev, added]);
+        }
+        setPortfolios((prev) => prev.map((p) =>
+          p.portfolioId === selectedPortfolio.portfolioId
+            ? { ...p, mediaCount: p.mediaCount + 1 }
+            : p
+        ));
+      }
+    } catch {
+      // silent – state stays consistent from server perspective
+    } finally {
+      setMediaToggleBusy((prev) => {
+        const next = new Set(prev);
+        next.delete(mediaId);
+        return next;
+      });
+    }
   };
 
   return (
@@ -922,8 +1127,244 @@ function HomePage() {
       ) : null}
 
       {activeTab === "portfolio" ? (
-        <div className="profile-portfolio">
-          In development
+        <div className="profile-portfolio-tab">
+          {portfoliosError ? <div className="discover-alert discover-alert--error">{portfoliosError}</div> : null}
+
+          {selectedPortfolio ? (
+            // ── Portfolio detail view ────────────────────────────────────────
+            <div className="portfolio-detail">
+              <div className="portfolio-detail__header">
+                <button
+                  type="button"
+                  className="portfolio-back-btn"
+                  onClick={() => setSelectedPortfolio(null)}
+                >
+                  ← Back
+                </button>
+                <h3 className="portfolio-detail__name">{selectedPortfolio.name}</h3>
+                {isOwnProfile ? (
+                  <div className="portfolio-detail__actions">
+                    <button
+                      type="button"
+                      className="portfolio-action-btn"
+                      onClick={() => void openAddMediaDialog()}
+                    >
+                      Add media
+                    </button>
+                    <button
+                      type="button"
+                      className="portfolio-action-btn portfolio-action-btn--danger"
+                      onClick={() => setDeletePortfolioTarget(selectedPortfolio)}
+                    >
+                      Delete portfolio
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              {portfolioMediaError ? <div className="discover-alert discover-alert--error">{portfolioMediaError}</div> : null}
+
+              {portfolioMediaLoading ? <div className="portfolio-loading">Loading...</div> : null}
+
+              {!portfolioMediaLoading && portfolioMedia.length === 0 ? (
+                <div className="profile-empty">
+                  {isOwnProfile ? "No media in this portfolio yet. Use \"Add media\" to curate items." : "No media in this portfolio."}
+                </div>
+              ) : null}
+
+              <div className="profile-media-grid">
+                {portfolioMedia.map((item) => (
+                  <div key={item.mediaId} className="profile-media-grid__item portfolio-media-item">
+                    <Link
+                      to={`/posts/${item.postId}`}
+                      state={{ mediaId: item.mediaId }}
+                      className="portfolio-media-item__link"
+                      title="Open post detail"
+                    >
+                      <img
+                        src={item.thumbnailUrl || item.originalUrl}
+                        alt="Portfolio item"
+                        loading="lazy"
+                      />
+                    </Link>
+                    {isOwnProfile ? (
+                      <button
+                        type="button"
+                        className="portfolio-media-item__remove"
+                        aria-label="Remove from portfolio"
+                        onClick={() => void toggleMediaInPortfolio(item.mediaId)}
+                        disabled={mediaToggleBusy.has(item.mediaId)}
+                      >
+                        ×
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            // ── Portfolio list view ──────────────────────────────────────────
+            <div className="portfolio-list">
+              {isOwnProfile ? (
+                <div className="portfolio-list__header">
+                  <h3>Your portfolios</h3>
+                  <button
+                    type="button"
+                    className="portfolio-action-btn"
+                    onClick={() => {
+                      setCreatePortfolioName("");
+                      setCreatePortfolioError(null);
+                      setCreatePortfolioOpen(true);
+                    }}
+                  >
+                    + New portfolio
+                  </button>
+                </div>
+              ) : null}
+
+              {portfoliosLoading ? <div className="portfolio-loading">Loading...</div> : null}
+
+              {!portfoliosLoading && portfolios.length === 0 ? (
+                <div className="profile-empty">
+                  {isOwnProfile ? "No portfolios yet. Create one to curate your best work." : "No portfolios yet."}
+                </div>
+              ) : null}
+
+              <div className="portfolio-cards">
+                {portfolios.map((portfolio) => (
+                  <button
+                    key={portfolio.portfolioId}
+                    type="button"
+                    className="portfolio-card"
+                    onClick={() => setSelectedPortfolio(portfolio)}
+                  >
+                    <div className="portfolio-card__name">{portfolio.name}</div>
+                    <div className="portfolio-card__count">{portfolio.mediaCount} {portfolio.mediaCount === 1 ? "item" : "items"}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Create portfolio dialog */}
+          {createPortfolioOpen ? (
+            <dialog className="portfolio-dialog" open>
+              <button
+                type="button"
+                className="portfolio-dialog__backdrop"
+                aria-label="Close"
+                onClick={() => setCreatePortfolioOpen(false)}
+              />
+              <div className="portfolio-dialog__card">
+                <h3>New portfolio</h3>
+                {createPortfolioError ? <div className="portfolio-dialog__error">{createPortfolioError}</div> : null}
+                <label className="portfolio-dialog__field">
+                  <span>Name</span>
+                  <input
+                    value={createPortfolioName}
+                    onChange={(e) => setCreatePortfolioName(e.target.value)}
+                    maxLength={100}
+                    placeholder="e.g. Character Design"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void handleCreatePortfolio();
+                    }}
+                  />
+                </label>
+                <div className="portfolio-dialog__footer">
+                  <button type="button" onClick={() => setCreatePortfolioOpen(false)} disabled={createPortfolioBusy}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="portfolio-action-btn"
+                    onClick={() => void handleCreatePortfolio()}
+                    disabled={createPortfolioBusy}
+                  >
+                    {createPortfolioBusy ? "Creating..." : "Create"}
+                  </button>
+                </div>
+              </div>
+            </dialog>
+          ) : null}
+
+          {/* Delete portfolio confirm dialog */}
+          {deletePortfolioTarget ? (
+            <dialog className="post-detail__confirm" open>
+              <button
+                type="button"
+                className="post-detail__confirm-backdrop"
+                aria-label="Close"
+                onClick={() => setDeletePortfolioTarget(null)}
+              />
+              <div className="post-detail__confirm-card">
+                <h3>Delete "{deletePortfolioTarget.name}"?</h3>
+                <p>This will remove the portfolio and all its curation. Original posts won't be affected.</p>
+                <div className="post-detail__confirm-actions">
+                  <button type="button" onClick={() => setDeletePortfolioTarget(null)} disabled={deletePortfolioBusy}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="post-detail__confirm-danger"
+                    onClick={() => void handleDeletePortfolio()}
+                    disabled={deletePortfolioBusy}
+                  >
+                    {deletePortfolioBusy ? "Deleting..." : "Delete"}
+                  </button>
+                </div>
+              </div>
+            </dialog>
+          ) : null}
+
+          {/* Add media picker dialog */}
+          {addMediaOpen ? (
+            <dialog className="portfolio-picker" open>
+              <button
+                type="button"
+                className="portfolio-picker__backdrop"
+                aria-label="Close"
+                onClick={() => setAddMediaOpen(false)}
+              />
+              <div className="portfolio-picker__card">
+                <div className="portfolio-picker__header">
+                  <h3>Add to "{selectedPortfolio?.name}"</h3>
+                  <button type="button" onClick={() => setAddMediaOpen(false)}>
+                    Close
+                  </button>
+                </div>
+                <p className="portfolio-picker__hint">Tap an image to add or remove it from this portfolio.</p>
+                {userMediaPickerLoading ? <div className="portfolio-loading">Loading your media...</div> : null}
+                {!userMediaPickerLoading && userMediaForPicker.length === 0 ? (
+                  <div className="profile-empty">No media found. Post some artwork first.</div>
+                ) : null}
+                <div className="portfolio-picker__grid">
+                  {userMediaForPicker.map((item) => {
+                    const inPortfolio = portfolioMediaIds.has(item.mediaId);
+                    const busy = mediaToggleBusy.has(item.mediaId);
+                    return (
+                      <button
+                        key={item.mediaId}
+                        type="button"
+                        className={`portfolio-picker__item${inPortfolio ? " portfolio-picker__item--selected" : ""}`}
+                        onClick={() => void toggleMediaInPortfolio(item.mediaId)}
+                        disabled={busy}
+                        aria-pressed={inPortfolio}
+                        title={inPortfolio ? "Remove from portfolio" : "Add to portfolio"}
+                      >
+                        <img
+                          src={item.thumbnailUrl || item.originalUrl}
+                          alt="Media item"
+                          loading="lazy"
+                        />
+                        {inPortfolio ? <span className="portfolio-picker__check" aria-hidden="true">✓</span> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </dialog>
+          ) : null}
         </div>
       ) : null}
       {activeTab === "pending" && isOwnProfile ? (

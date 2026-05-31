@@ -183,3 +183,27 @@ export type AccountSettingsInput = {
   bio: string;
   website: string;
 };
+
+export type Portfolio = {
+  portfolioId: string;
+  name: string;
+  mediaCount: number;
+};
+
+export type MediaListItem = {
+  mediaId: string;
+  postId: string;
+  userId: string;
+  orderIndex: number | null;
+  originalPublicId: string;
+  originalUrl: string;
+  thumbnailPublicId: string | null;
+  thumbnailUrl: string | null;
+};
+
+export type MediaListResponse = {
+  items: MediaListItem[];
+  page: number;
+  size: number;
+  hasNext: boolean;
+};
