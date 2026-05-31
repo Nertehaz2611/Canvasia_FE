@@ -23,6 +23,7 @@ import {
   updatePost,
   unlikePost,
 } from "../services/socialService";
+import { getOrCreateConversation } from "../services/messageService";
 import { getErrorMessage } from "../utils/errorMessage";
 import { compressImageFiles } from "../utils/imageCompression";
 import type {
@@ -100,6 +101,7 @@ function HomePage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
+  const [messageBusy, setMessageBusy] = useState(false);
 
   const displayName = profile?.displayName || profile?.username || "Your profile";
   const initial = displayName.charAt(0).toUpperCase();
@@ -575,7 +577,19 @@ function HomePage() {
                 >
                   {followLabel}
                 </button>
-                <button type="button" className="profile-hero__action">
+                <button
+                  type="button"
+                  className="profile-hero__action"
+                  disabled={messageBusy}
+                  onClick={() => {
+                    if (!profile?.username) return;
+                    setMessageBusy(true);
+                    getOrCreateConversation(profile.username)
+                      .then((conv) => navigate(`/messages/${conv.conversationId}`))
+                      .catch(() => setMessageBusy(false))
+                      .finally(() => setMessageBusy(false));
+                  }}
+                >
                   Message
                 </button>
               </div>

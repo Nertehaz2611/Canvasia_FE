@@ -110,10 +110,10 @@ function AppShell() {
         </div>
 
         <div className="topbar-right">
-          <button type="button" className="topbar-link" aria-label="Messages">
+          <NavLink to="/messages" className="topbar-link topbar-link--activeable" aria-label="Messages">
             <MailOutlineRoundedIcon fontSize="small" />
             <span>Messages</span>
-          </button>
+          </NavLink>
           <button type="button" className="topbar-link" aria-label="Notifications">
             <NotificationsNoneRoundedIcon fontSize="small" />
             <span>Notifications</span>
