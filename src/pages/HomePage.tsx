@@ -4,6 +4,7 @@ import FavoriteBorderRoundedIcon from "@mui/icons-material/FavoriteBorderRounded
 import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
 import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
 import PostCardMedia from "../components/posts/PostCardMedia";
+import FlagWarningBanner from "../components/posts/FlagWarningBanner";
 import PostEditorModal from "../components/posts/PostEditorModal";
 import {
   createPost,
@@ -474,6 +475,7 @@ function HomePage() {
     try {
       await deletePost(deleteTarget.postId);
       setPosts((prev) => prev.filter((item) => item.postId !== deleteTarget.postId));
+      setPendingPosts((prev) => prev.filter((item) => item.postId !== deleteTarget.postId));
       setDeleteOpen(false);
       setDeleteTarget(null);
     } catch (error) {
@@ -963,6 +965,8 @@ function HomePage() {
                   </div>
 
                   {post.caption ? <p className="post-card__caption">{post.caption}</p> : null}
+
+                  <FlagWarningBanner post={post} />
 
                   <Link
                     to={`/posts/${post.postId}`}

@@ -21,6 +21,8 @@ export type Post = {
   likeCount: number;
   likedByMe: boolean;
   isPending: boolean;
+  flaggedMatchedPostId?: string | null;
+  flaggedMatchedAuthorDisplayName?: string | null;
 };
 
 export type CursorPostFeedResponse = {

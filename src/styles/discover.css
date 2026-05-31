@@ -230,20 +230,22 @@
 }
 
 .discover-grid {
-  columns: 6 190px;
-  column-gap: 2px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 2px;
 }
 
 .discover-grid__item {
   display: block;
-  margin-bottom: 2px;
-  break-inside: avoid;
   overflow: hidden;
 }
 
 .discover-grid__item img {
   width: 100%;
+  height: auto;
   display: block;
+  aspect-ratio: 1;
+  object-fit: cover;
   transition: transform 260ms ease;
 }
 
@@ -2078,7 +2080,7 @@
 
 @media (max-width: 960px) {
   .discover-grid {
-    columns: 4 160px;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
 
   .posts-layout {
@@ -2141,7 +2143,7 @@
   }
 
   .discover-grid {
-    columns: 2 150px;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   }
 }
 

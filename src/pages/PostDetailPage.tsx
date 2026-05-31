@@ -21,6 +21,7 @@ import {
 import { getErrorMessage } from "../utils/errorMessage";
 import type { Comment, MediaItem, Post, UpdatePostInput } from "../types/social";
 import PostEditorModal from "../components/posts/PostEditorModal";
+import FlagWarningBanner from "../components/posts/FlagWarningBanner";
 
 const placeholderTags = ["visual", "painting", "digital", "study", "palette"];
 
@@ -933,6 +934,8 @@ function PostDetailInfo({
             <p>{caption}</p>
           </div>
 
+          <FlagWarningBanner post={postData} />
+
           {tags.length > 0 ? (
             <div className="post-detail__tags">
               {tags.map((tag) => (
@@ -1096,6 +1099,7 @@ function PostDetailPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const isOwner = !!model.currentUsername && model.postData?.username === model.currentUsername;
+  const canEdit = isOwner && !model.postData?.isPending;
 
   const handleUpdate = async (input: UpdatePostInput) => {
     setEditBusy(true);
@@ -1137,7 +1141,7 @@ function PostDetailPage() {
         onClose={() => navigate(-1)}
         onEdit={() => setEditOpen(true)}
         onDelete={() => setDeleteOpen(true)}
-        canEdit={isOwner}
+        canEdit={canEdit}
       />
       {model.postData ? (
         <PostEditorModal

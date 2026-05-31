@@ -29,3 +29,33 @@ textarea {
 a {
   color: inherit;
 }
+
+.flag-warning {
+  padding: 10px 14px;
+  margin: 12px 0;
+  background: rgba(194, 120, 3, 0.10);
+  border: 1px solid rgba(194, 120, 3, 0.38);
+  border-radius: 8px;
+  color: #7a4a00;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.flag-warning__icon {
+  margin-right: 4px;
+}
+
+.flag-warning__name {
+  white-space: nowrap;
+}
+
+.flag-warning__link {
+  color: #7a4a00;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.flag-warning__link:hover {
+  color: #4d2e00;
+}
