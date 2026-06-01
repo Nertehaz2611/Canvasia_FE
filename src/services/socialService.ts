@@ -34,6 +34,18 @@ export async function getDiscoverPosts(limit = 10, cursor?: string | null, tag?:
   return response.data;
 }
 
+export async function getSearchPosts(limit = 10, cursor?: string | null, query = ""): Promise<CursorPostFeedResponse> {
+  const response = await api.get<CursorPostFeedResponse>("/posts/search", {
+    params: {
+      limit,
+      cursor: cursor || undefined,
+      query: query.trim(),
+    },
+  });
+
+  return response.data;
+}
+
 export async function getPostById(postId: string): Promise<Post> {
   const response = await api.get<Post>(`/posts/${postId}`);
   return response.data;
@@ -169,6 +181,17 @@ export async function unlikeComment(commentId: string): Promise<CommentLikeRespo
 
 export async function getMyProfile(): Promise<Profile> {
   const response = await api.get<Profile>("/profile/me");
+  return response.data;
+}
+
+export async function searchProfiles(query: string, limit = 8): Promise<Profile[]> {
+  const response = await api.get<Profile[]>("/profile/search", {
+    params: {
+      query: query.trim(),
+      limit,
+    },
+  });
+
   return response.data;
 }
 

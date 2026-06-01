@@ -896,67 +896,71 @@ function HomePage() {
                 </button>
               </div>
             ) : null}
-            <form className="profile-composer" onSubmit={(event) => void submitPost(event)}>
-              <div className="profile-composer__header">
-                <div>
-                  <h3>Share your latest work</h3>
-                  <p>Post artwork, sketches, or concepts to your feed.</p>
+            {isOwnProfile ? (
+              <form className="profile-composer" onSubmit={(event) => void submitPost(event)}>
+                <div className="profile-composer__header">
+                  <div>
+                    <h3>Share your latest work</h3>
+                    <p>Post artwork, sketches, or concepts to your feed.</p>
+                  </div>
+                  <button type="submit" disabled={composerBusy || viewerLoading}>
+                    {composerBusy ? "Posting..." : "Post"}
+                  </button>
                 </div>
-                <button type="submit" disabled={composerBusy || viewerLoading}>
-                  {composerBusy ? "Posting..." : "Post"}
-                </button>
-              </div>
 
-              {composerError ? <div className="profile-composer__alert">{composerError}</div> : null}
-              {composerSuccess ? <div className="profile-composer__success">{composerSuccess}</div> : null}
+                {composerError ? <div className="profile-composer__alert">{composerError}</div> : null}
+                {composerSuccess ? <div className="profile-composer__success">{composerSuccess}</div> : null}
 
-              <textarea
-                rows={3}
-                value={caption}
-                onChange={(event) => setCaption(event.target.value)}
-                placeholder="Write a caption or tell the story behind the work"
-              />
-
-              <div className="profile-composer__controls">
-                <input
-                  value={tagInput}
-                  onChange={(event) => setTagInput(event.target.value)}
-                  placeholder="Tags (comma separated)"
+                <textarea
+                  rows={3}
+                  value={caption}
+                  onChange={(event) => setCaption(event.target.value)}
+                  placeholder="Write a caption or tell the story behind the work"
                 />
-                <label className="profile-composer__upload">
+
+                <div className="profile-composer__controls">
                   <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleMediaSelect}
+                    value={tagInput}
+                    onChange={(event) => setTagInput(event.target.value)}
+                    placeholder="Tags (comma separated)"
                   />
-                  <span>{mediaFiles.length ? `${mediaFiles.length} files` : "Add media"}</span>
-                </label>
-              </div>
-              {mediaPreviews.length ? (
-                <div className="profile-composer__preview">
-                  {mediaPreviews.map((preview, index) => (
-                    <div key={`${preview.file.name}-${index}`} className="profile-composer__preview-item">
-                      <button
-                        type="button"
-                        className="profile-composer__preview-remove"
-                        aria-label={`Remove ${preview.file.name}`}
-                        onClick={() => removeMediaFile(index)}
-                      >
-                        x
-                      </button>
-                      <img src={preview.url} alt={`Selected ${preview.file.name}`} />
-                    </div>
-                  ))}
+                  <label className="profile-composer__upload">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleMediaSelect}
+                    />
+                    <span>{mediaFiles.length ? `${mediaFiles.length} files` : "Add media"}</span>
+                  </label>
                 </div>
-              ) : null}
-            </form>
+                {mediaPreviews.length ? (
+                  <div className="profile-composer__preview">
+                    {mediaPreviews.map((preview, index) => (
+                      <div key={`${preview.file.name}-${index}`} className="profile-composer__preview-item">
+                        <button
+                          type="button"
+                          className="profile-composer__preview-remove"
+                          aria-label={`Remove ${preview.file.name}`}
+                          onClick={() => removeMediaFile(index)}
+                        >
+                          x
+                        </button>
+                        <img src={preview.url} alt={`Selected ${preview.file.name}`} />
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </form>
+            ) : null}
 
             {postsError ? <div className="discover-alert discover-alert--error">{postsError}</div> : null}
 
             <div className="post-feed">
               {posts.length === 0 && !postsLoading ? (
-                <div className="profile-empty">Nothing here yet. Make your first post.</div>
+                <div className="profile-empty">
+                  {isOwnProfile ? "Nothing here yet. Make your first post." : "No posts yet."}
+                </div>
               ) : null}
 
               {posts.map((post) => (

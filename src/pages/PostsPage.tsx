@@ -1,9 +1,9 @@
 import { useEffect, useState, type MouseEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import FavoriteBorderRoundedIcon from "@mui/icons-material/FavoriteBorderRounded";
 import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
 import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
-import { deletePost, getDiscoverPosts, getLatestDiscussions, getLatestHashtags, getMyProfile, likePost, updatePost, unlikePost } from "../services/socialService";
+import { deletePost, getDiscoverPosts, getLatestDiscussions, getLatestHashtags, getMyProfile, getSearchPosts, likePost, updatePost, unlikePost } from "../services/socialService";
 import PostCardMedia from "../components/posts/PostCardMedia";
 import PostEditorModal from "../components/posts/PostEditorModal";
 import { getErrorMessage } from "../utils/errorMessage";
@@ -15,6 +15,8 @@ function formatDate(iso: string): string {
 }
 
 function PostsPage() {
+  const [searchParams] = useSearchParams();
+  const searchQuery = searchParams.get("q")?.trim() || "";
   const [posts, setPosts] = useState<Post[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
@@ -47,7 +49,9 @@ function PostsPage() {
     setError(null);
 
     try {
-      const response = await getDiscoverPosts(10, replace ? undefined : cursor);
+      const response = searchQuery
+        ? await getSearchPosts(10, replace ? undefined : cursor, searchQuery)
+        : await getDiscoverPosts(10, replace ? undefined : cursor);
       setPosts((prev) => (replace ? response.items : [...prev, ...response.items]));
       setCursor(response.nextCursor);
       setHasNext(response.hasNext);
@@ -59,9 +63,12 @@ function PostsPage() {
   };
 
   useEffect(() => {
+    setPosts([]);
+    setCursor(null);
+    setHasNext(false);
     void loadPosts(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchQuery]);
 
   useEffect(() => {
     let isMounted = true;
@@ -184,6 +191,13 @@ function PostsPage() {
         <div className="posts-layout__spacer" aria-hidden="true" />
 
         <div className="posts-layout__main">
+          {searchQuery ? (
+            <div className="posts-search-banner">
+              <span>Search results</span>
+              <strong>“{searchQuery}”</strong>
+            </div>
+          ) : null}
+
           <div className="post-feed">
             {posts.map((post) => (
               <article key={post.postId} className="post-card">
@@ -270,6 +284,13 @@ function PostsPage() {
                 </div>
               </article>
             ))}
+
+            {!isLoading && posts.length === 0 ? (
+              <div className="post-feed__empty">
+                <h3>No posts found.</h3>
+                <p>{searchQuery ? "Try a different caption keyword." : "There are no posts to show yet."}</p>
+              </div>
+            ) : null}
           </div>
 
           <div className="discover-actions">
