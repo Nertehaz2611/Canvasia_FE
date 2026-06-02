@@ -4,7 +4,7 @@ import ConversationList from "../components/messages/ConversationList";
 import MessageThread from "../components/messages/MessageThread";
 import NewConversationDialog from "../components/messages/NewConversationDialog";
 import { useRealtimeMessages } from "../hooks/useRealtimeMessages";
-import { getConversations, sendMessageHttp } from "../services/messageService";
+import { getConversations, markConversationRead, sendMessageHttp } from "../services/messageService";
 import { getMyProfile } from "../services/socialService";
 import type { ChatMessage, ConversationSummary } from "../types/message";
 import type { Profile } from "../types/social";
@@ -20,6 +20,22 @@ export default function MessagesPage() {
   const [activeConv, setActiveConv] = useState<ConversationSummary | null>(null);
   const [liveMessages, setLiveMessages] = useState<ChatMessage[]>([]);
   const [showNewDialog, setShowNewDialog] = useState(false);
+  const activeConversationId = activeConv?.conversationId;
+
+  const notifyMessagesRead = () => {
+    globalThis.dispatchEvent(new Event("canvasia:messages-read"));
+  };
+
+  const markConversationAsRead = useCallback(async (conversationId: string) => {
+    setConversations((prev) => prev.map((conversation) => (
+      conversation.conversationId === conversationId
+        ? { ...conversation, unreadCount: 0 }
+        : conversation
+    )));
+    setActiveConv((prev) => (prev?.conversationId === conversationId ? { ...prev, unreadCount: 0 } : prev));
+    await markConversationRead(conversationId).catch(() => null);
+    notifyMessagesRead();
+  }, []);
 
   // Load profile and conversations on mount.
   // After load, auto-select the conversation from URL (survives F5).
@@ -30,7 +46,10 @@ export default function MessagesPage() {
         setConversations(list);
         if (urlConvId) {
           const found = list.find((c) => c.conversationId === urlConvId);
-          if (found) setActiveConv({ ...found, unreadCount: 0 });
+          if (found) {
+            setActiveConv({ ...found, unreadCount: 0 });
+            void markConversationAsRead(found.conversationId);
+          }
         }
       })
       .catch(() => null);
@@ -43,7 +62,11 @@ export default function MessagesPage() {
       if (prev.some((m) => m.messageId === msg.messageId)) return prev;
       return [...prev, msg];
     });
-  }, []);
+
+    if (msg.conversationId === activeConversationId) {
+      void markConversationAsRead(msg.conversationId);
+    }
+  }, [activeConversationId, markConversationAsRead]);
 
   // Handle a conversation list update (unread count, preview, etc.)
   // We only update mutable preview fields — never identity fields (name, avatar)
@@ -63,14 +86,14 @@ export default function MessagesPage() {
           lastMessagePreview: updated.lastMessagePreview,
           lastMessageAt: updated.lastMessageAt,
           lastSenderId: updated.lastSenderId,
-          unreadCount: updated.unreadCount,
+          unreadCount: c.conversationId === activeConversationId ? 0 : updated.unreadCount,
         };
       });
     });
 
     // If this conversation is active, also update its preview fields
     setActiveConv((prev) => {
-      if (!prev || prev.conversationId !== updated.conversationId) return prev;
+      if (prev?.conversationId !== updated.conversationId) return prev;
       return {
         ...prev,
         lastMessagePreview: updated.lastMessagePreview,
@@ -79,7 +102,7 @@ export default function MessagesPage() {
         unreadCount: 0, // we're looking at it
       };
     });
-  }, []);
+  }, [activeConversationId]);
 
   const { sendMessage: wsSendMessage } = useRealtimeMessages({ onNewMessage, onConversationUpdate });
 
@@ -90,13 +113,8 @@ export default function MessagesPage() {
     // Push conversationId into URL so F5 restores the open thread
     navigate(`/messages/${conv.conversationId}`, { replace: false });
 
-    // Clear unread badge locally when opening
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.conversationId === conv.conversationId ? { ...c, unreadCount: 0 } : c,
-      ),
-    );
     setActiveConv({ ...conv, unreadCount: 0 });
+    void markConversationAsRead(conv.conversationId);
     // Clear live messages that belonged to the previous conversation
     setLiveMessages((prev) => prev.filter((m) => m.conversationId !== conv.conversationId));
   };
@@ -108,6 +126,7 @@ export default function MessagesPage() {
     });
     navigate(`/messages/${conv.conversationId}`, { replace: false });
     setActiveConv(conv);
+    notifyMessagesRead();
     setShowNewDialog(false);
   };
 

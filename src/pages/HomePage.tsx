@@ -517,8 +517,8 @@ function HomePage() {
           ? { ...item, likedByMe: response.likedByMe, likeCount: response.likeCount }
           : item
       )));
-    } catch {
-      setPostsError("Cannot update like right now.");
+    } catch (error) {
+      setPostsError(getErrorMessage(error, "Cannot update like right now."));
     }
   };
 

@@ -79,7 +79,11 @@ export default function MessageThread({
       }
     });
 
-    markConversationRead(conversation.conversationId).catch(() => null);
+    markConversationRead(conversation.conversationId)
+      .then(() => {
+        globalThis.dispatchEvent(new Event("canvasia:messages-read"));
+      })
+      .catch(() => null);
 
     return () => { active = false; };
   }, [conversation.conversationId]);

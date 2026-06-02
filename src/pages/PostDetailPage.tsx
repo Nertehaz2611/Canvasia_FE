@@ -300,8 +300,8 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
         likedByMe: response.likedByMe,
         likeCount: response.likeCount
       });
-    } catch {
-      setError("Cannot update like right now.");
+    } catch (error) {
+      setError(getErrorMessage(error, "Cannot update like right now."));
     }
   };
 
@@ -319,8 +319,8 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
       await createComment(postData.postId, content);
       setCommentText("");
       await refreshComments();
-    } catch {
-      setError("Cannot post comment right now.");
+    } catch (error) {
+      setError(getErrorMessage(error, "Cannot post comment right now."));
     }
   };
 
@@ -330,8 +330,8 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
         ? await unlikeComment(commentId)
         : await likeComment(commentId);
       setCommentItems((prev) => updateCommentLikeState(prev, response.commentId, response.likeCount, response.likedByMe));
-    } catch {
-      setCommentsError("Cannot update comment like right now.");
+    } catch (error) {
+      setCommentsError(getErrorMessage(error, "Cannot update comment like right now."));
     }
   };
 
@@ -358,8 +358,8 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
       setReplyDrafts((prev) => ({ ...prev, [commentId]: "" }));
       setActiveReplyId(null);
       await refreshComments();
-    } catch {
-      setCommentsError("Cannot post reply right now.");
+    } catch (error) {
+      setCommentsError(getErrorMessage(error, "Cannot post reply right now."));
     }
   };
 
@@ -387,8 +387,8 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
       await updateComment(commentId, content);
       setEditingCommentId(null);
       await refreshComments();
-    } catch {
-      setCommentsError("Cannot update comment right now.");
+    } catch (error) {
+      setCommentsError(getErrorMessage(error, "Cannot update comment right now."));
     }
   };
 
@@ -406,8 +406,8 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
         setEditingCommentId(null);
       }
       await refreshComments();
-    } catch {
-      setCommentsError("Cannot delete comment right now.");
+    } catch (error) {
+      setCommentsError(getErrorMessage(error, "Cannot delete comment right now."));
     }
   };
 

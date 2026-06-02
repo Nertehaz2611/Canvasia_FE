@@ -124,8 +124,8 @@ function PostsPage() {
           ? { ...item, likedByMe: response.likedByMe, likeCount: response.likeCount }
           : item
       )));
-    } catch {
-      setError("Cannot update like right now.");
+    } catch (error) {
+      setError(getErrorMessage(error, "Cannot update like right now."));
     }
   };
 
