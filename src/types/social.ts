@@ -67,6 +67,12 @@ export type PostSaveResponse = {
   savedByMe: boolean;
 };
 
+export type ReportPostInput = {
+  postId: string;
+  reasons: string[];
+  otherReason?: string;
+};
+
 export type Comment = {
   commentId: string;
   postId: string;

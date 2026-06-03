@@ -6,6 +6,7 @@ import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineR
 import { deletePost, getDiscoverPosts, getLatestDiscussions, getLatestHashtags, getMyProfile, getSearchPosts, likePost, updatePost, unlikePost, savePost, unsavePost } from "../services/socialService";
 import PostCardMedia from "../components/posts/PostCardMedia";
 import PostEditorModal from "../components/posts/PostEditorModal";
+import ReportPostDialog from "../components/posts/ReportPostDialog";
 import { getErrorMessage } from "../utils/errorMessage";
 import type { LatestDiscussionItem, Post, UpdatePostInput } from "../types/social";
 
@@ -34,6 +35,7 @@ function PostsPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
   const [saveBusy, setSaveBusy] = useState<Set<string>>(new Set());
+  const [reportTarget, setReportTarget] = useState<Post | null>(null);
 
   const normalizeTag = (tag: string) => {
     const trimmed = tag.trim();
@@ -260,6 +262,19 @@ function PostsPage() {
                           >
                             {post.savedByMe ? "Unsave" : "Save"}
                           </button>
+                          {post.username === currentUsername ? null : (
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="post-action-menu__report"
+                              onClick={(event) => {
+                                closeActionMenu(event);
+                                setReportTarget(post);
+                              }}
+                            >
+                              Report
+                            </button>
+                          )}
                           {post.username === currentUsername ? (
                             <>
                               <button
@@ -421,6 +436,12 @@ function PostsPage() {
             </div>
           </div>
         </dialog>
+      ) : null}
+      {reportTarget ? (
+        <ReportPostDialog
+          postId={reportTarget.postId}
+          onClose={() => setReportTarget(null)}
+        />
       ) : null}
     </section>
   );

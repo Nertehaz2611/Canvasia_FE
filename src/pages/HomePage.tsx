@@ -6,6 +6,7 @@ import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineR
 import PostCardMedia from "../components/posts/PostCardMedia";
 import FlagWarningBanner from "../components/posts/FlagWarningBanner";
 import PostEditorModal from "../components/posts/PostEditorModal";
+import ReportPostDialog from "../components/posts/ReportPostDialog";
 import {
   createPost,
   deletePost,
@@ -116,6 +117,7 @@ function HomePage() {
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
   const [messageBusy, setMessageBusy] = useState(false);
   const [saveBusy, setSaveBusy] = useState<Set<string>>(new Set());
+  const [reportTarget, setReportTarget] = useState<Post | null>(null);
   const [savedPosts, setSavedPosts] = useState<Post[]>([]);
   const [savedPage, setSavedPage] = useState(0);
   const [savedHasNext, setSavedHasNext] = useState(false);
@@ -1108,7 +1110,19 @@ function HomePage() {
                                   Delete
                                 </button>
                               </>
-                            ) : null}
+                            ) : (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className="post-action-menu__report"
+                                onClick={(event) => {
+                                  closeActionMenu(event);
+                                  setReportTarget(post);
+                                }}
+                              >
+                                Report
+                              </button>
+                            )}
                           </div>
                         </details>
                       </div>
@@ -1278,7 +1292,19 @@ function HomePage() {
                                   Delete
                                 </button>
                               </>
-                            ) : null}
+                            ) : (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className="post-action-menu__report"
+                                onClick={(event) => {
+                                  closeActionMenu(event);
+                                  setReportTarget(post);
+                                }}
+                              >
+                                Report
+                              </button>
+                            )}
                           </div>
                         </details>
                       </div>
@@ -1808,6 +1834,13 @@ function HomePage() {
             </ul>
           </div>
         </dialog>
+      ) : null}
+
+      {reportTarget ? (
+        <ReportPostDialog
+          postId={reportTarget.postId}
+          onClose={() => setReportTarget(null)}
+        />
       ) : null}
 
       {toast ? (

@@ -24,6 +24,7 @@ import { getErrorMessage } from "../utils/errorMessage";
 import type { Comment, MediaItem, Post, UpdatePostInput } from "../types/social";
 import PostEditorModal from "../components/posts/PostEditorModal";
 import FlagWarningBanner from "../components/posts/FlagWarningBanner";
+import ReportPostDialog from "../components/posts/ReportPostDialog";
 
 const placeholderTags = ["visual", "painting", "digital", "study", "palette"];
 
@@ -491,9 +492,11 @@ type PostDetailViewProps = {
   highlightCommentId?: string | null;
   canEdit: boolean;
   canSave: boolean;
+  canReport: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onToggleSave: () => Promise<void>;
+  onReport: () => void;
 };
 
 type PostDetailMediaProps = {
@@ -621,9 +624,11 @@ type PostDetailInfoProps = {
   onDeleteComment: (commentId: string) => Promise<void>;
   canEdit: boolean;
   canSave: boolean;
+  canReport: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onToggleSave: () => Promise<void>;
+  onReport: () => void;
 };
 
 type PostDetailCommentsProps = {
@@ -871,9 +876,11 @@ function PostDetailInfo({
   onDeleteComment,
   canEdit,
   canSave,
+  canReport,
   onEdit,
   onDelete,
   onToggleSave,
+  onReport,
 }: Readonly<PostDetailInfoProps>) {
   const closeActionMenu = (event: MouseEvent<HTMLButtonElement>) => {
     const details = event.currentTarget.closest("details");
@@ -904,7 +911,7 @@ function PostDetailInfo({
                 <p>@{username} • {createdAt}</p>
               </div>
             </Link>
-            {canEdit || canSave ? (
+            {canEdit || canSave || canReport ? (
               <div className="post-detail__menu">
                 <details className="post-action-menu">
                   <summary aria-label="Post options">
@@ -921,6 +928,19 @@ function PostDetailInfo({
                         }}
                       >
                         {postData?.savedByMe ? "Unsave" : "Save"}
+                      </button>
+                    ) : null}
+                    {canReport ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="post-action-menu__report"
+                        onClick={(event) => {
+                          closeActionMenu(event);
+                          onReport();
+                        }}
+                      >
+                        Report
                       </button>
                     ) : null}
                     {canEdit ? (
@@ -1009,7 +1029,7 @@ function PostDetailInfo({
   );
 }
 
-function PostDetailView({ postId, model, onClose, highlightCommentId, canEdit, canSave, onEdit, onDelete, onToggleSave }: Readonly<PostDetailViewProps>) {
+function PostDetailView({ postId, model, onClose, highlightCommentId, canEdit, canSave, canReport, onEdit, onDelete, onToggleSave, onReport }: Readonly<PostDetailViewProps>) {
   const {
     postData,
     error,
@@ -1103,9 +1123,11 @@ function PostDetailView({ postId, model, onClose, highlightCommentId, canEdit, c
           onDeleteComment={deleteComment}
           canEdit={canEdit}
           canSave={canSave}
+          canReport={canReport}
           onEdit={onEdit}
           onDelete={onDelete}
           onToggleSave={onToggleSave}
+          onReport={onReport}
         />
       </div>
     </dialog>
@@ -1123,6 +1145,7 @@ function PostDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; out: boolean } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1138,6 +1161,7 @@ function PostDetailPage() {
   const isOwner = !!model.currentUsername && model.postData?.username === model.currentUsername;
   const canEdit = isOwner && !model.postData?.isPending;
   const canSave = !!model.currentUsername;
+  const canReport = !!model.currentUsername && !isOwner;
 
   const handleToggleSave = async () => {
     if (!model.postData) return;
@@ -1198,7 +1222,9 @@ function PostDetailPage() {
         onDelete={() => setDeleteOpen(true)}
         canEdit={canEdit}
         canSave={canSave}
+        canReport={canReport}
         onToggleSave={handleToggleSave}
+        onReport={() => setReportOpen(true)}
       />
       {model.postData ? (
         <PostEditorModal
@@ -1232,6 +1258,13 @@ function PostDetailPage() {
             </div>
           </div>
         </dialog>
+      ) : null}
+
+      {reportOpen && model.postData ? (
+        <ReportPostDialog
+          postId={model.postData.postId}
+          onClose={() => setReportOpen(false)}
+        />
       ) : null}
 
       {toast ? (

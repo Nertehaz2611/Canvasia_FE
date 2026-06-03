@@ -18,6 +18,7 @@ import type {
   PostFeedResponse,
   PostLikeResponse,
   PostSaveResponse,
+  ReportPostInput,
   Profile,
   AccountSettingsInput,
   ProfileSetupInput,
@@ -141,6 +142,13 @@ export async function savePost(postId: string): Promise<PostSaveResponse> {
 export async function unsavePost(postId: string): Promise<PostSaveResponse> {
   const response = await api.delete<PostSaveResponse>(`/posts/${postId}/saves`);
   return response.data;
+}
+
+export async function reportPost(input: ReportPostInput): Promise<void> {
+  await api.post(`/posts/${input.postId}/reports`, {
+    reasons: input.reasons,
+    otherReason: input.otherReason ?? null,
+  });
 }
 
 export async function getSavedPosts(page = 0, size = 10): Promise<PostFeedResponse> {
