@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import FavoriteBorderRoundedIcon from "@mui/icons-material/FavoriteBorderRounded";
 import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
 import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
-import { deletePost, getDiscoverPosts, getLatestDiscussions, getLatestHashtags, getMyProfile, getSearchPosts, likePost, updatePost, unlikePost } from "../services/socialService";
+import { deletePost, getDiscoverPosts, getLatestDiscussions, getLatestHashtags, getMyProfile, getSearchPosts, likePost, updatePost, unlikePost, savePost, unsavePost } from "../services/socialService";
 import PostCardMedia from "../components/posts/PostCardMedia";
 import PostEditorModal from "../components/posts/PostEditorModal";
 import { getErrorMessage } from "../utils/errorMessage";
@@ -33,6 +33,7 @@ function PostsPage() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
+  const [saveBusy, setSaveBusy] = useState<Set<string>>(new Set());
 
   const normalizeTag = (tag: string) => {
     const trimmed = tag.trim();
@@ -42,6 +43,28 @@ function PostsPage() {
   const isHashtagTag = (tag: string) => {
     const normalized = normalizeTag(tag);
     return normalized.length > 0 && !normalized.startsWith("@");
+  };
+
+  const toggleSave = async (post: Post) => {
+    if (!currentUsername || saveBusy.has(post.postId)) return;
+    setSaveBusy((prev) => new Set(prev).add(post.postId));
+    const wasSaved = post.savedByMe;
+    setPosts((prev) =>
+      prev.map((p) => p.postId === post.postId ? { ...p, savedByMe: !wasSaved } : p)
+    );
+    try {
+      if (wasSaved) {
+        await unsavePost(post.postId);
+      } else {
+        await savePost(post.postId);
+      }
+    } catch {
+      setPosts((prev) =>
+        prev.map((p) => p.postId === post.postId ? { ...p, savedByMe: wasSaved } : p)
+      );
+    } finally {
+      setSaveBusy((prev) => { const next = new Set(prev); next.delete(post.postId); return next; });
+    }
   };
 
   const loadPosts = async (replace = false) => {
@@ -219,7 +242,7 @@ function PostsPage() {
                       <p>@{post.username} • {formatDate(post.createdAt)}</p>
                     </div>
                   </Link>
-                  {currentUsername && post.username === currentUsername ? (
+                  {currentUsername ? (
                     <div className="post-card__menu">
                       <details className="post-action-menu">
                         <summary aria-label="Post options">
@@ -229,24 +252,39 @@ function PostsPage() {
                           <button
                             type="button"
                             role="menuitem"
+                            disabled={saveBusy.has(post.postId)}
                             onClick={(event) => {
                               closeActionMenu(event);
-                              openEdit(post);
+                              void toggleSave(post);
                             }}
                           >
-                            Edit
+                            {post.savedByMe ? "Unsave" : "Save"}
                           </button>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            className="post-action-menu__danger"
-                            onClick={(event) => {
-                              closeActionMenu(event);
-                              openDelete(post);
-                            }}
-                          >
-                            Delete
-                          </button>
+                          {post.username === currentUsername ? (
+                            <>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={(event) => {
+                                  closeActionMenu(event);
+                                  openEdit(post);
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className="post-action-menu__danger"
+                                onClick={(event) => {
+                                  closeActionMenu(event);
+                                  openDelete(post);
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </>
+                          ) : null}
                         </div>
                       </details>
                     </div>

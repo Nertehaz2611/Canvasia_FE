@@ -20,6 +20,7 @@ export type Post = {
   commentCount: number;
   likeCount: number;
   likedByMe: boolean;
+  savedByMe: boolean;
   isPending: boolean;
   flaggedMatchedPostId?: string | null;
   flaggedMatchedAuthorDisplayName?: string | null;
@@ -59,6 +60,11 @@ export type PostLikeResponse = {
   postId: string;
   likeCount: number;
   likedByMe: boolean;
+};
+
+export type PostSaveResponse = {
+  postId: string;
+  savedByMe: boolean;
 };
 
 export type Comment = {

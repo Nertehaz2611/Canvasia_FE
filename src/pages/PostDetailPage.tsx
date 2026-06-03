@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import FavoriteBorderRoundedIcon from "@mui/icons-material/FavoriteBorderRounded";
 import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
@@ -17,6 +17,8 @@ import {
   updatePost,
   unlikeComment,
   unlikePost,
+  savePost,
+  unsavePost,
 } from "../services/socialService";
 import { getErrorMessage } from "../utils/errorMessage";
 import type { Comment, MediaItem, Post, UpdatePostInput } from "../types/social";
@@ -488,8 +490,10 @@ type PostDetailViewProps = {
   onClose: () => void;
   highlightCommentId?: string | null;
   canEdit: boolean;
+  canSave: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  onToggleSave: () => Promise<void>;
 };
 
 type PostDetailMediaProps = {
@@ -616,8 +620,10 @@ type PostDetailInfoProps = {
   onSubmitEditComment: (commentId: string) => Promise<void>;
   onDeleteComment: (commentId: string) => Promise<void>;
   canEdit: boolean;
+  canSave: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  onToggleSave: () => Promise<void>;
 };
 
 type PostDetailCommentsProps = {
@@ -864,8 +870,10 @@ function PostDetailInfo({
   onSubmitEditComment,
   onDeleteComment,
   canEdit,
+  canSave,
   onEdit,
   onDelete,
+  onToggleSave,
 }: Readonly<PostDetailInfoProps>) {
   const closeActionMenu = (event: MouseEvent<HTMLButtonElement>) => {
     const details = event.currentTarget.closest("details");
@@ -896,34 +904,50 @@ function PostDetailInfo({
                 <p>@{username} • {createdAt}</p>
               </div>
             </Link>
-            {canEdit ? (
+            {canEdit || canSave ? (
               <div className="post-detail__menu">
                 <details className="post-action-menu">
                   <summary aria-label="Post options">
                     <span aria-hidden="true">...</span>
                   </summary>
                   <div className="post-action-menu__list" role="menu">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={(event) => {
-                        closeActionMenu(event);
-                        onEdit();
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="post-action-menu__danger"
-                      onClick={(event) => {
-                        closeActionMenu(event);
-                        onDelete();
-                      }}
-                    >
-                      Delete
-                    </button>
+                    {canSave ? (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={(event) => {
+                          closeActionMenu(event);
+                          void onToggleSave();
+                        }}
+                      >
+                        {postData?.savedByMe ? "Unsave" : "Save"}
+                      </button>
+                    ) : null}
+                    {canEdit ? (
+                      <>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={(event) => {
+                            closeActionMenu(event);
+                            onEdit();
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="post-action-menu__danger"
+                          onClick={(event) => {
+                            closeActionMenu(event);
+                            onDelete();
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                 </details>
               </div>
@@ -985,7 +1009,7 @@ function PostDetailInfo({
   );
 }
 
-function PostDetailView({ postId, model, onClose, highlightCommentId, canEdit, onEdit, onDelete }: Readonly<PostDetailViewProps>) {
+function PostDetailView({ postId, model, onClose, highlightCommentId, canEdit, canSave, onEdit, onDelete, onToggleSave }: Readonly<PostDetailViewProps>) {
   const {
     postData,
     error,
@@ -1078,8 +1102,10 @@ function PostDetailView({ postId, model, onClose, highlightCommentId, canEdit, o
           onSubmitEditComment={submitEditComment}
           onDeleteComment={deleteComment}
           canEdit={canEdit}
+          canSave={canSave}
           onEdit={onEdit}
           onDelete={onDelete}
+          onToggleSave={onToggleSave}
         />
       </div>
     </dialog>
@@ -1097,9 +1123,38 @@ function PostDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; out: boolean } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = (message: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, out: false });
+    toastTimerRef.current = setTimeout(() => {
+      setToast((prev) => prev ? { ...prev, out: true } : null);
+      toastTimerRef.current = setTimeout(() => setToast(null), 400);
+    }, 1800);
+  };
 
   const isOwner = !!model.currentUsername && model.postData?.username === model.currentUsername;
   const canEdit = isOwner && !model.postData?.isPending;
+  const canSave = !!model.currentUsername;
+
+  const handleToggleSave = async () => {
+    if (!model.postData) return;
+    const wasSaved = model.postData.savedByMe;
+    model.updatePostData({ ...model.postData, savedByMe: !wasSaved });
+    try {
+      if (wasSaved) {
+        await unsavePost(model.postData.postId);
+        showToast("Post removed from Saved");
+      } else {
+        await savePost(model.postData.postId);
+        showToast("Post saved");
+      }
+    } catch {
+      model.updatePostData({ ...model.postData, savedByMe: wasSaved });
+    }
+  };
 
   const handleUpdate = async (input: UpdatePostInput) => {
     setEditBusy(true);
@@ -1142,6 +1197,8 @@ function PostDetailPage() {
         onEdit={() => setEditOpen(true)}
         onDelete={() => setDeleteOpen(true)}
         canEdit={canEdit}
+        canSave={canSave}
+        onToggleSave={handleToggleSave}
       />
       {model.postData ? (
         <PostEditorModal
@@ -1175,6 +1232,12 @@ function PostDetailPage() {
             </div>
           </div>
         </dialog>
+      ) : null}
+
+      {toast ? (
+        <div className={toast.out ? "save-toast save-toast--out" : "save-toast"}>
+          {toast.message}
+        </div>
       ) : null}
     </>
   );

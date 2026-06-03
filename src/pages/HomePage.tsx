@@ -22,6 +22,9 @@ import {
   unfollowUser,
   updatePost,
   unlikePost,
+  savePost,
+  unsavePost,
+  getSavedPosts,
   getMyPortfolios,
   getPortfoliosByUsername,
   createPortfolio,
@@ -44,7 +47,7 @@ import type {
   UpdatePostInput,
 } from "../types/social";
 
-type HomeTab = "posts" | "media" | "portfolio" | "pending";
+type HomeTab = "posts" | "saved" | "media" | "portfolio" | "pending";
 
 const DEFAULT_PAGE_SIZE = 6;
 
@@ -112,6 +115,14 @@ function HomePage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
   const [messageBusy, setMessageBusy] = useState(false);
+  const [saveBusy, setSaveBusy] = useState<Set<string>>(new Set());
+  const [savedPosts, setSavedPosts] = useState<Post[]>([]);
+  const [savedPage, setSavedPage] = useState(0);
+  const [savedHasNext, setSavedHasNext] = useState(false);
+  const [savedLoading, setSavedLoading] = useState(false);
+  const [savedError, setSavedError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; out: boolean } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // portfolio state
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
@@ -276,6 +287,14 @@ function HomePage() {
     void loadPosts(0, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.username]);
+
+  useEffect(() => {
+    if (!profile?.username || !isOwnProfile || activeTab !== "saved") {
+      return;
+    }
+    void loadSavedPosts(0, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, isOwnProfile, profile?.username]);
 
   useEffect(() => {
     if (!profile?.username || !isOwnProfile || activeTab !== "pending") {
@@ -519,6 +538,59 @@ function HomePage() {
       )));
     } catch (error) {
       setPostsError(getErrorMessage(error, "Cannot update like right now."));
+    }
+  };
+
+  const toggleSave = async (post: Post, updateList: "posts" | "saved") => {
+    if (saveBusy.has(post.postId)) return;
+    setSaveBusy((prev) => new Set(prev).add(post.postId));
+    const wasSaved = post.savedByMe;
+    const updater = (prev: Post[]) =>
+      prev.map((p) => p.postId === post.postId ? { ...p, savedByMe: !wasSaved } : p);
+    // Update both lists optimistically so they stay in sync
+    setPosts(updater);
+    setSavedPosts(updater);
+    try {
+      if (wasSaved) {
+        await unsavePost(post.postId);
+        if (updateList === "saved") setSavedPosts((prev) => prev.filter((p) => p.postId !== post.postId));
+        showToast("Post removed from Saved");
+      } else {
+        await savePost(post.postId);
+        showToast("Post saved");
+      }
+    } catch {
+      const revert = (prev: Post[]) =>
+        prev.map((p) => p.postId === post.postId ? { ...p, savedByMe: wasSaved } : p);
+      setPosts(revert);
+      setSavedPosts(revert);
+    } finally {
+      setSaveBusy((prev) => { const next = new Set(prev); next.delete(post.postId); return next; });
+    }
+  };
+
+  const showToast = (message: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, out: false });
+    toastTimerRef.current = setTimeout(() => {
+      setToast((prev) => prev ? { ...prev, out: true } : null);
+      toastTimerRef.current = setTimeout(() => setToast(null), 400);
+    }, 1800);
+  };
+
+  const loadSavedPosts = async (pageNum: number, replace: boolean) => {
+    if (!isOwnProfile) return;
+    setSavedLoading(true);
+    setSavedError(null);
+    try {
+      const response = await getSavedPosts(pageNum, DEFAULT_PAGE_SIZE);
+      setSavedPosts((prev) => replace ? response.items : [...prev, ...response.items]);
+      setSavedPage(pageNum);
+      setSavedHasNext(response.hasNext);
+    } catch (error) {
+      setSavedError(getErrorMessage(error, "Cannot load saved posts"));
+    } finally {
+      setSavedLoading(false);
     }
   };
 
@@ -842,6 +914,17 @@ function HomePage() {
         >
           Posts
         </button>
+        {isOwnProfile ? (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "saved"}
+            className={activeTab === "saved" ? "profile-tab profile-tab--active" : "profile-tab"}
+            onClick={() => setActiveTab("saved")}
+          >
+            Saved
+          </button>
+        ) : null}
         <button
           type="button"
           role="tab"
@@ -983,7 +1066,7 @@ function HomePage() {
                         <p>@{post.username} • {formatDate(post.createdAt)}</p>
                       </div>
                     </Link>
-                    {profile?.username && post.username === profile.username ? (
+                    {viewerProfile?.username ? (
                       <div className="post-card__menu">
                         <details className="post-action-menu">
                           <summary aria-label="Post options">
@@ -993,24 +1076,39 @@ function HomePage() {
                             <button
                               type="button"
                               role="menuitem"
+                              disabled={saveBusy.has(post.postId)}
                               onClick={(event) => {
                                 closeActionMenu(event);
-                                openEdit(post);
+                                void toggleSave(post, "posts");
                               }}
                             >
-                              Edit
+                              {post.savedByMe ? "Unsave" : "Save"}
                             </button>
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className="post-action-menu__danger"
-                              onClick={(event) => {
-                                closeActionMenu(event);
-                                openDelete(post);
-                              }}
-                            >
-                              Delete
-                            </button>
+                            {isOwnProfile ? (
+                              <>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={(event) => {
+                                    closeActionMenu(event);
+                                    openEdit(post);
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  className="post-action-menu__danger"
+                                  onClick={(event) => {
+                                    closeActionMenu(event);
+                                    openDelete(post);
+                                  }}
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            ) : null}
                           </div>
                         </details>
                       </div>
@@ -1054,6 +1152,176 @@ function HomePage() {
               {postsLoading ? <span>Loading...</span> : null}
               {!postsLoading && hasNext ? (
                 <button type="button" onClick={() => void loadPosts(page + 1, false)}>
+                  Load more
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          <aside className="profile-posts__sidebar">
+            <div className="posts-sidebar__card">
+              <div className="posts-sidebar__head">
+                <h3>Latest discussions</h3>
+                <span>Top 5</span>
+              </div>
+              <ul className="posts-sidebar__list">
+                {latestDiscussions.map((item) => (
+                  <li key={item.commentId}>
+                    <Link
+                      className="posts-sidebar__link"
+                      to={`/posts/${item.postId}`}
+                      state={{ commentId: item.commentId }}
+                      aria-label={`Open post detail for ${item.displayName || "comment"}`}
+                    >
+                      <div className="posts-sidebar__avatar">
+                        {item.avatarUrl ? (
+                          <img src={item.avatarUrl} alt={item.displayName || "User"} />
+                        ) : (
+                          <span>{(item.displayName || "U").charAt(0)}</span>
+                        )}
+                      </div>
+                      <div className="posts-sidebar__content">
+                        <p className="posts-sidebar__title">{item.displayName}</p>
+                        <p className="posts-sidebar__subtitle">{item.content}</p>
+                      </div>
+                      <span className="posts-sidebar__time">{formatDate(item.createdAt)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="posts-sidebar__card">
+              <div className="posts-sidebar__head">
+                <h3>Latest hashtags</h3>
+                <span>Top 5</span>
+              </div>
+              <div className="posts-sidebar__tags">
+                {latestHashtags.map((tag) => (
+                  <span key={tag}>#{tag}</span>
+                ))}
+              </div>
+            </div>
+          </aside>
+        </div>
+      ) : null}
+
+      {activeTab === "saved" ? (
+        <div className="profile-posts">
+          <div className="profile-posts__main">
+            {savedError ? (
+              <div className="discover-alert discover-alert--error">{savedError}</div>
+            ) : null}
+            <div className="post-feed">
+              {savedPosts.length === 0 && !savedLoading ? (
+                <div className="profile-empty">No saved posts yet.</div>
+              ) : null}
+              {savedPosts.map((post) => (
+                <article key={post.postId} className="post-card">
+                  <div className="post-card__head">
+                    <Link
+                      className="post-card__author-link"
+                      to={`/${post.username}`}
+                      aria-label={`Open profile for ${post.displayName || post.username}`}
+                    >
+                      <div className="post-card__author-avatar">
+                        {post.avatarUrl ? (
+                          <img src={post.avatarUrl} alt={post.displayName || "User"} />
+                        ) : (
+                          <span>{(post.displayName || "U").charAt(0)}</span>
+                        )}
+                      </div>
+                      <div>
+                        <h3>{post.displayName}</h3>
+                        <p>@{post.username} • {formatDate(post.createdAt)}</p>
+                      </div>
+                    </Link>
+                    {viewerProfile?.username ? (
+                      <div className="post-card__menu">
+                        <details className="post-action-menu">
+                          <summary aria-label="Post options">
+                            <span aria-hidden="true">...</span>
+                          </summary>
+                          <div className="post-action-menu__list" role="menu">
+                            <button
+                              type="button"
+                              role="menuitem"
+                              disabled={saveBusy.has(post.postId)}
+                              onClick={(event) => {
+                                closeActionMenu(event);
+                                void toggleSave(post, "saved");
+                              }}
+                            >
+                              {post.savedByMe ? "Unsave" : "Save"}
+                            </button>
+                            {post.username === viewerProfile.username ? (
+                              <>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={(event) => {
+                                    closeActionMenu(event);
+                                    openEdit(post);
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  className="post-action-menu__danger"
+                                  onClick={(event) => {
+                                    closeActionMenu(event);
+                                    openDelete(post);
+                                  }}
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            ) : null}
+                          </div>
+                        </details>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {post.caption ? <p className="post-card__caption">{post.caption}</p> : null}
+
+                  <PostCardMedia
+                    postId={post.postId}
+                    caption={post.caption}
+                    media={post.media}
+                  />
+
+                  {post.tags.length ? (
+                    <div className="post-card__tags">
+                      {post.tags.map((tag) => (
+                        <span key={`${post.postId}-${tag}`}>#{normalizeTag(tag)}</span>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="post-card__actions">
+                    <button type="button" className="post-card__like" onClick={() => void toggleLike(post)}>
+                      {post.likedByMe ? <FavoriteRoundedIcon /> : <FavoriteBorderRoundedIcon />} {post.likeCount}
+                    </button>
+                    <Link
+                      to={`/posts/${post.postId}`}
+                      state={{ post, initialMediaIndex: 0 }}
+                      className="post-card__comment-link"
+                      aria-label="Open post detail"
+                    >
+                      <ChatBubbleOutlineRoundedIcon /> {post.commentCount}
+                    </Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="discover-actions">
+              {savedLoading ? <span>Loading...</span> : null}
+              {!savedLoading && savedHasNext ? (
+                <button type="button" onClick={() => void loadSavedPosts(savedPage + 1, false)}>
                   Load more
                 </button>
               ) : null}
@@ -1540,6 +1808,12 @@ function HomePage() {
             </ul>
           </div>
         </dialog>
+      ) : null}
+
+      {toast ? (
+        <div className={toast.out ? "save-toast save-toast--out" : "save-toast"}>
+          {toast.message}
+        </div>
       ) : null}
     </section>
   );
