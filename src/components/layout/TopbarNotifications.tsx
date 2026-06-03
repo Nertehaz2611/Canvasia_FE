@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRealtimeNotifications } from "../../hooks/useRealtimeNotifications";
+import { useTopbarProfile } from "../../hooks/useTopbarProfile";
 import { getNotifications, markAllNotificationsAsRead, markNotificationAsRead } from "../../services/notificationService";
 import type { NotificationItem } from "../../types/notification";
 import NotificationDropdown from "../notifications/NotificationDropdown";
 
 function TopbarNotifications() {
   const navigate = useNavigate();
+  const { profile } = useTopbarProfile();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [notificationLoading, setNotificationLoading] = useState(false);
   const [notificationError, setNotificationError] = useState<string | null>(null);
+  const [deletedPostModal, setDeletedPostModal] = useState<NotificationItem | null>(null);
   const notificationMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -128,6 +131,22 @@ function TopbarNotifications() {
       return;
     }
 
+    // Admin action notifications
+    if (notification.type === "POST_APPROVED" && profile?.username) {
+      navigate(`/${profile.username}`, { state: { tab: "posts", scrollToPostId: notification.postId } });
+      return;
+    }
+
+    if (notification.type === "POST_REJECTED" && profile?.username) {
+      navigate(`/${profile.username}`, { state: { tab: "pending", scrollToPostId: notification.postId } });
+      return;
+    }
+
+    if (notification.type === "POST_DELETED_REPORTED") {
+      setDeletedPostModal(notification);
+      return;
+    }
+
     if (notification.postId) {
       navigate(`/posts/${notification.postId}`);
     }
@@ -166,6 +185,28 @@ function TopbarNotifications() {
         onNotificationClick={(notification) => void handleNotificationClick(notification)}
         formatNotificationTime={formatNotificationTime}
       />
+
+      {deletedPostModal ? (
+        <dialog
+          className="admin-dialog-backdrop"
+          open
+          aria-labelledby="deleted-post-modal-title"
+        >
+          <div className="admin-dialog">
+            <h3 id="deleted-post-modal-title">Post Removed</h3>
+            <p>{deletedPostModal.content}</p>
+            <div className="admin-dialog__actions">
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => setDeletedPostModal(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </dialog>
+      ) : null}
     </div>
   );
 }

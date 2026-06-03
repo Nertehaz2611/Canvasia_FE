@@ -1719,6 +1719,13 @@ function HomePage() {
 
                   {post.caption ? <p className="post-card__caption">{post.caption}</p> : null}
 
+                  {post.isRejected ? (
+                    <div className="pending-rejected-banner">
+                      <span className="pending-rejected-banner__icon" aria-hidden="true">✕</span>
+                      Rejected by Admin — this post will not be published.
+                    </div>
+                  ) : null}
+
                   <FlagWarningBanner post={post} />
 
                   <Link

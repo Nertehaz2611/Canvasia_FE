@@ -4,6 +4,7 @@ import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
 import ExploreRoundedIcon from "@mui/icons-material/ExploreRounded";
 import ArticleOutlinedIcon from "@mui/icons-material/ArticleOutlined";
 import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
+import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import projectLogoImage from "../../assets/logo/logo.webp";
 import TopbarNotifications from "./TopbarNotifications";
 import TopbarSearch from "./TopbarSearch";
@@ -86,6 +87,12 @@ function AppShellTopbar() {
       <TopbarSearch />
 
       <div className="topbar-right">
+        {profile?.role === "ADMIN" ? (
+          <NavLink to="/admin-panel" className="topbar-link topbar-link--activeable topbar-link--admin" aria-label="Admin Panel">
+            <AdminPanelSettingsOutlinedIcon fontSize="small" />
+            <span>Admin</span>
+          </NavLink>
+        ) : null}
         <NavLink to="/messages" className="topbar-link topbar-link--activeable" aria-label="Messages">
           <MailOutlineRoundedIcon fontSize="small" />
           <span>Messages</span>

@@ -22,6 +22,7 @@ export type Post = {
   likedByMe: boolean;
   savedByMe: boolean;
   isPending: boolean;
+  isRejected: boolean;
   flaggedMatchedPostId?: string | null;
   flaggedMatchedAuthorDisplayName?: string | null;
 };
@@ -135,6 +136,7 @@ export type Profile = {
   followerCount: number;
   followingCount: number;
   isFollowing: boolean;
+  role: string | null;
 };
 
 export type FollowUserItem = {
@@ -215,6 +217,90 @@ export type MediaListItem = {
 
 export type MediaListResponse = {
   items: MediaListItem[];
+  page: number;
+  size: number;
+  hasNext: boolean;
+};
+
+// Admin types
+export type AdminStats = {
+  totalUsers: number;
+  newUsersLast7Days: number;
+  totalPosts: number;
+  totalComments: number;
+  totalLikes: number;
+  totalReports: number;
+};
+
+export type AdminUserItem = {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  role: string | null;
+  status: string | null;
+  createdAt: string;
+};
+
+export type AdminUserFeedResponse = {
+  items: AdminUserItem[];
+  page: number;
+  size: number;
+  hasNext: boolean;
+};
+
+export type AdminPendingPostItem = {
+  postId: string;
+  userId: string;
+  displayName: string;
+  username: string;
+  avatarUrl: string | null;
+  caption: string;
+  createdAt: string;
+  media: MediaItem[];
+  tags: string[];
+  commentCount: number;
+  likeCount: number;
+  flaggedMatchedPostId: string | null;
+  flaggedMatchedAuthorDisplayName: string | null;
+};
+
+export type AdminPendingPostFeedResponse = {
+  items: AdminPendingPostItem[];
+  page: number;
+  size: number;
+  hasNext: boolean;
+};
+
+export type AdminReportItem = {
+  reportId: string;
+  reporterId: string | null;
+  reporterUsername: string | null;
+  reporterDisplayName: string | null;
+  reporterAvatarUrl: string | null;
+  reasons: string[];
+  otherReason: string | null;
+  reportedAt: string;
+};
+
+export type AdminReportedPostItem = {
+  postId: string;
+  userId: string;
+  displayName: string;
+  username: string;
+  avatarUrl: string | null;
+  caption: string;
+  createdAt: string;
+  media: MediaItem[];
+  tags: string[];
+  commentCount: number;
+  likeCount: number;
+  reportCount: number;
+  reports: AdminReportItem[];
+};
+
+export type AdminReportedPostFeedResponse = {
+  items: AdminReportedPostItem[];
   page: number;
   size: number;
   hasNext: boolean;

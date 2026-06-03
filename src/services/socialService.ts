@@ -1,5 +1,9 @@
 import api from "./api";
 import type {
+  AdminPendingPostFeedResponse,
+  AdminReportedPostFeedResponse,
+  AdminStats,
+  AdminUserFeedResponse,
   AvatarUploadResponse,
   CommentFeedResponse,
   CommentLikeResponse,
@@ -328,4 +332,43 @@ export async function getPortfolioMedia(portfolioId: string, page = 0, size = 10
     params: { page, size },
   });
   return response.data;
+}
+
+// Admin API functions
+export async function getAdminStats(): Promise<AdminStats> {
+  const response = await api.get<AdminStats>("/admin/stats");
+  return response.data;
+}
+
+export async function getAdminUsers(page = 0, size = 20): Promise<AdminUserFeedResponse> {
+  const response = await api.get<AdminUserFeedResponse>("/admin/users", {
+    params: { page, size },
+  });
+  return response.data;
+}
+
+export async function getAdminPendingPosts(page = 0, size = 10): Promise<AdminPendingPostFeedResponse> {
+  const response = await api.get<AdminPendingPostFeedResponse>("/admin/posts/pending", {
+    params: { page, size },
+  });
+  return response.data;
+}
+
+export async function adminApprovePost(postId: string): Promise<void> {
+  await api.post(`/admin/posts/${postId}/approve`);
+}
+
+export async function adminRejectPost(postId: string): Promise<void> {
+  await api.post(`/admin/posts/${postId}/reject`);
+}
+
+export async function getAdminReportedPosts(page = 0, size = 10): Promise<AdminReportedPostFeedResponse> {
+  const response = await api.get<AdminReportedPostFeedResponse>("/admin/reports", {
+    params: { page, size },
+  });
+  return response.data;
+}
+
+export async function adminDeleteReportedPost(postId: string): Promise<void> {
+  await api.delete(`/admin/posts/${postId}`);
 }
