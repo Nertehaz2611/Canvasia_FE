@@ -46,7 +46,6 @@ function App() {
         )}
       >
         <Route path="/home" element={<HomePage />} />
-        <Route path="/:username" element={<HomePage />} />
         <Route path="/explore" element={<ExplorePage />} />
         <Route path="/posts" element={<PostsPage />} />
         <Route path="/posts/:postId" element={<PostDetailPage />} />
@@ -54,6 +53,8 @@ function App() {
         <Route path="/messages" element={<MessagesPage />} />
         <Route path="/messages/:conversationId" element={<MessagesPage />} />
         <Route path="/admin-panel" element={<AdminPanelPage />} />
+        <Route path="/:username" element={<HomePage />} />
+        <Route path="*" element={<Navigate to="/explore" replace />} />
       </Route>
     </Routes>
   );

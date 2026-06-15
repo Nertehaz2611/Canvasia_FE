@@ -25,6 +25,17 @@ export type Post = {
   isRejected: boolean;
   flaggedMatchedPostId?: string | null;
   flaggedMatchedAuthorDisplayName?: string | null;
+  visibility: PostVisibility;
+  allowedViewers: PostAllowedViewer[];
+};
+
+export type PostVisibility = "PUBLIC" | "FOLLOWERS" | "SELECTED_USERS" | "ONLY_ME";
+
+export type PostAllowedViewer = {
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
 };
 
 export type CursorPostFeedResponse = {
@@ -169,6 +180,8 @@ export type CreatePostInput = {
   caption: string;
   tags: string[];
   mediaFiles: File[];
+  visibility: PostVisibility;
+  allowedViewerUserIds: string[];
 };
 
 export type ReplacePostMediaInput = {
@@ -183,6 +196,8 @@ export type UpdatePostInput = {
   deleteMediaIds: string[];
   replaceMedia: ReplacePostMediaInput[];
   newFiles: File[];
+  visibility?: PostVisibility;
+  allowedViewerUserIds?: string[];
 };
 
 export type ProfileSetupInput = {

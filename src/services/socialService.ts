@@ -71,15 +71,14 @@ export async function getDiscoverThumbnails(limit = 50, cursor?: string | null):
 export async function createPost(input: CreatePostInput): Promise<void> {
   const formData = new FormData();
 
-  if (input.caption.trim()) {
-    formData.append("caption", input.caption.trim());
-  }
-
-  for (const tag of input.tags) {
-    if (tag.trim()) {
-      formData.append("tags", tag.trim());
-    }
-  }
+  const payload = {
+    caption: input.caption.trim() || null,
+    tags: input.tags.map((tag) => tag.trim()).filter(Boolean),
+    thumbnailCrops: [],
+    visibility: input.visibility,
+    allowedViewerUserIds: input.allowedViewerUserIds,
+  };
+  formData.append("payload", JSON.stringify(payload));
 
   for (const mediaFile of input.mediaFiles) {
     formData.append("media", mediaFile);
@@ -100,6 +99,8 @@ export async function updatePost(input: UpdatePostInput): Promise<Post> {
     deleteMediaIds: input.deleteMediaIds,
     replaceMedia: [] as Array<{ mediaId: string; fileIndex: number }>,
     thumbnailCrops: [],
+    visibility: input.visibility,
+    allowedViewerUserIds: input.allowedViewerUserIds,
   };
 
   const files: File[] = [];
@@ -241,6 +242,17 @@ export async function unfollowUser(username: string): Promise<FollowStatusRespon
 export async function getFollowers(username: string, page = 0, size = 20): Promise<FollowUserFeedResponse> {
   const response = await api.get<FollowUserFeedResponse>(`/follows/${username}/followers`, {
     params: { page, size },
+  });
+  return response.data;
+}
+
+export async function searchFollowers(username: string, query: string, page = 0, size = 10): Promise<FollowUserFeedResponse> {
+  const response = await api.get<FollowUserFeedResponse>(`/follows/${username}/followers/search`, {
+    params: {
+      query: query.trim(),
+      page,
+      size,
+    },
   });
   return response.data;
 }

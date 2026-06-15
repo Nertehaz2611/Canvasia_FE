@@ -1,8 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import type { MediaItem, Post, UpdatePostInput } from "../../types/social";
+import { searchFollowers } from "../../services/socialService";
+import type { FollowUserItem, MediaItem, Post, PostVisibility, UpdatePostInput } from "../../types/social";
 import { compressImageFiles } from "../../utils/imageCompression";
 
 const EMPTY_ERROR = "A post must contain at least one image.";
+
+const AUDIENCE_OPTIONS: Array<{ value: PostVisibility; label: string }> = [
+  { value: "PUBLIC", label: "All" },
+  { value: "FOLLOWERS", label: "Followers only" },
+  { value: "SELECTED_USERS", label: "Selected users" },
+  { value: "ONLY_ME", label: "Only me" },
+];
 
 function normalizeTag(tag: string): string {
   const trimmed = tag.trim();
@@ -38,6 +46,16 @@ function PostEditorModal({
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [newFilePreviews, setNewFilePreviews] = useState<Array<{ file: File; url: string }>>([]);
+  const [visibility, setVisibility] = useState<PostVisibility>(post.visibility || "PUBLIC");
+  const [selectedAudienceUsers, setSelectedAudienceUsers] = useState<FollowUserItem[]>(post.allowedViewers.map((item) => ({
+    userId: item.userId,
+    username: item.username,
+    displayName: item.displayName,
+    avatarUrl: item.avatarUrl,
+  })));
+  const [audienceQuery, setAudienceQuery] = useState("");
+  const [audienceSearchResults, setAudienceSearchResults] = useState<FollowUserItem[]>([]);
+  const [audienceSearchLoading, setAudienceSearchLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const mediaItems = useMemo(() => post.media ?? [], [post.media]);
@@ -52,8 +70,57 @@ function PostEditorModal({
     setRemovedIds(new Set());
     setNewFiles([]);
     setNewFilePreviews([]);
+    setVisibility(post.visibility || "PUBLIC");
+    setSelectedAudienceUsers(post.allowedViewers.map((item) => ({
+      userId: item.userId,
+      username: item.username,
+      displayName: item.displayName,
+      avatarUrl: item.avatarUrl,
+    })));
+    setAudienceQuery("");
+    setAudienceSearchResults([]);
+    setAudienceSearchLoading(false);
     setLocalError(null);
-  }, [isOpen, post.caption, post.postId, post.tags]);
+  }, [isOpen, post.allowedViewers, post.caption, post.postId, post.tags, post.visibility]);
+
+  useEffect(() => {
+    if (!isOpen || visibility !== "SELECTED_USERS") {
+      setAudienceSearchResults([]);
+      setAudienceSearchLoading(false);
+      return;
+    }
+
+    const trimmedQuery = audienceQuery.trim();
+    if (!trimmedQuery) {
+      setAudienceSearchResults([]);
+      setAudienceSearchLoading(false);
+      return;
+    }
+
+    let active = true;
+    const timer = globalThis.setTimeout(async () => {
+      setAudienceSearchLoading(true);
+      try {
+        const response = await searchFollowers(post.username, trimmedQuery, 0, 12);
+        if (!active) return;
+        const selectedIds = new Set(selectedAudienceUsers.map((item) => item.userId));
+        setAudienceSearchResults(response.items.filter((item) => !selectedIds.has(item.userId)));
+      } catch {
+        if (active) {
+          setAudienceSearchResults([]);
+        }
+      } finally {
+        if (active) {
+          setAudienceSearchLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      globalThis.clearTimeout(timer);
+    };
+  }, [audienceQuery, isOpen, post.username, selectedAudienceUsers, visibility]);
 
   useEffect(() => {
     if (newFiles.length === 0) {
@@ -93,6 +160,21 @@ function PostEditorModal({
     setNewFiles([]);
   };
 
+  const addSelectedAudienceUser = (user: FollowUserItem) => {
+    setSelectedAudienceUsers((prev) => {
+      if (prev.some((item) => item.userId === user.userId)) {
+        return prev;
+      }
+      return [...prev, user];
+    });
+    setAudienceQuery("");
+    setAudienceSearchResults([]);
+  };
+
+  const removeSelectedAudienceUser = (userId: string) => {
+    setSelectedAudienceUsers((prev) => prev.filter((item) => item.userId !== userId));
+  };
+
   const handleSubmit = async () => {
     setLocalError(null);
 
@@ -100,6 +182,11 @@ function PostEditorModal({
     const remainingCount = mediaItems.length - deleteMediaIds.length + newFiles.length;
     if (remainingCount <= 0) {
       setLocalError(EMPTY_ERROR);
+      return;
+    }
+
+    if (visibility === "SELECTED_USERS" && selectedAudienceUsers.length === 0) {
+      setLocalError("Please select at least one follower for selected audience.");
       return;
     }
 
@@ -111,6 +198,8 @@ function PostEditorModal({
       deleteMediaIds,
       replaceMedia: [],
       newFiles: optimizedFiles,
+      visibility,
+      allowedViewerUserIds: selectedAudienceUsers.map((item) => item.userId),
     });
   };
 
@@ -136,6 +225,8 @@ function PostEditorModal({
       </div>
     );
   };
+
+  const shouldShowFollowerChoices = visibility === "SELECTED_USERS";
 
   return (
     <dialog className="post-editor" open>
@@ -167,6 +258,82 @@ function PostEditorModal({
               placeholder="#painting, #study"
             />
           </label>
+
+          <label className="post-editor__field">
+            <span>Who can view this post?</span>
+            <select
+              value={visibility}
+              onChange={(event) => setVisibility(event.target.value as PostVisibility)}
+            >
+              {AUDIENCE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+
+          {shouldShowFollowerChoices ? (
+            <div className="post-editor__audience-list">
+              <div className="post-editor__audience-selected">
+                {selectedAudienceUsers.map((item) => (
+                  <div key={item.userId} className="post-editor__audience-chip">
+                    <div className="post-editor__audience-avatar" aria-hidden="true">
+                      {item.avatarUrl ? (
+                        <img src={item.avatarUrl} alt={item.displayName || item.username} />
+                      ) : (
+                        <span>{(item.displayName || item.username || "U").charAt(0).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <span>{item.displayName || item.username}</span>
+                    <button
+                      type="button"
+                      className="post-editor__audience-remove"
+                      aria-label={`Remove ${item.displayName || item.username}`}
+                      onClick={() => removeSelectedAudienceUser(item.userId)}
+                    >
+                      x
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <input
+                value={audienceQuery}
+                onChange={(event) => setAudienceQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                  }
+                }}
+                placeholder="Search follower by display name or username"
+                className="post-editor__audience-search"
+              />
+
+              {audienceSearchLoading ? <p>Searching followers...</p> : null}
+              {!audienceSearchLoading && audienceQuery.trim() && audienceSearchResults.length === 0 ? (
+                <p>No matching followers found.</p>
+              ) : null}
+              {audienceSearchLoading ? null : audienceSearchResults.map((item) => (
+                <button
+                  key={item.userId}
+                  type="button"
+                  className="post-editor__audience-result"
+                  onClick={() => addSelectedAudienceUser(item)}
+                >
+                  <div className="post-editor__audience-avatar" aria-hidden="true">
+                    {item.avatarUrl ? (
+                      <img src={item.avatarUrl} alt={item.displayName || item.username} />
+                    ) : (
+                      <span>{(item.displayName || item.username || "U").charAt(0).toUpperCase()}</span>
+                    )}
+                  </div>
+                  <div>
+                    <strong>{item.displayName || item.username}</strong>
+                    <small>@{item.username}</small>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : null}
 
           <div className="post-editor__section">
             <h4>Current media</h4>
