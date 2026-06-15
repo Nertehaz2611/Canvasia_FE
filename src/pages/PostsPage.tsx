@@ -15,6 +15,20 @@ function formatDate(iso: string): string {
   return Number.isNaN(parsedDate.getTime()) ? iso : parsedDate.toLocaleDateString();
 }
 
+function getPostVisibilityLabel(post: Post): string {
+  switch (post.visibility) {
+    case "FOLLOWERS":
+      return "Followers only";
+    case "SELECTED_USERS":
+      return `Selected users (${post.allowedViewers.length})`;
+    case "ONLY_ME":
+      return "Only me";
+    case "PUBLIC":
+    default:
+      return "All";
+  }
+}
+
 function PostsPage() {
   const [searchParams] = useSearchParams();
   const searchQuery = searchParams.get("q")?.trim() || "";
@@ -241,7 +255,12 @@ function PostsPage() {
                     </div>
                     <div>
                       <h3>{post.displayName}</h3>
-                      <p>@{post.username} • {formatDate(post.createdAt)}</p>
+                      <p>
+                        <span>@{post.username} • {formatDate(post.createdAt)}</span>
+                        {post.username === currentUsername ? (
+                          <span className="post-visibility-badge">{getPostVisibilityLabel(post)}</span>
+                        ) : null}
+                      </p>
                     </div>
                   </Link>
                   {currentUsername ? (

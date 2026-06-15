@@ -14,6 +14,7 @@ import {
   getLatestHashtags,
   getMyProfile,
   getFollowers,
+  searchFollowers,
   getFollowing,
   getPendingPosts,
   getUserProfile,
@@ -42,6 +43,7 @@ import type {
   FollowUserItem,
   LatestDiscussionItem,
   MediaListItem,
+  PostVisibility,
   Portfolio,
   Post,
   Profile,
@@ -68,6 +70,27 @@ function parseTags(raw: string): string[] {
     .map((tag) => normalizeTag(tag))
     .filter(Boolean);
 }
+
+function getPostVisibilityLabel(post: Post): string {
+  switch (post.visibility) {
+    case "FOLLOWERS":
+      return "Followers only";
+    case "SELECTED_USERS":
+      return `Selected users (${post.allowedViewers.length})`;
+    case "ONLY_ME":
+      return "Only me";
+    case "PUBLIC":
+    default:
+      return "All";
+  }
+}
+
+const POST_AUDIENCE_OPTIONS: Array<{ value: PostVisibility; label: string }> = [
+  { value: "PUBLIC", label: "All" },
+  { value: "FOLLOWERS", label: "Followers only" },
+  { value: "SELECTED_USERS", label: "Selected users" },
+  { value: "ONLY_ME", label: "Only me" },
+];
 
 // eslint-disable-next-line sonarjs/cognitive-complexity
 function HomePage() {
@@ -104,6 +127,11 @@ function HomePage() {
   const [tagInput, setTagInput] = useState("");
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
   const [mediaPreviews, setMediaPreviews] = useState<Array<{ file: File; url: string }>>([]);
+  const [postVisibility, setPostVisibility] = useState<PostVisibility>("PUBLIC");
+  const [selectedAudienceUsers, setSelectedAudienceUsers] = useState<FollowUserItem[]>([]);
+  const [audienceQuery, setAudienceQuery] = useState("");
+  const [audienceSearchResults, setAudienceSearchResults] = useState<FollowUserItem[]>([]);
+  const [audienceSearchLoading, setAudienceSearchLoading] = useState(false);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [composerSuccess, setComposerSuccess] = useState<string | null>(null);
   const [composerBusy, setComposerBusy] = useState(false);
@@ -371,8 +399,8 @@ function HomePage() {
           : await getPortfoliosByUsername(profile.username);
         if (isMounted) {
           setPortfolios(list);
-          setSelectedPortfolio(null);
-          setPortfolioMedia([]);
+          setSelectedPortfolio((prev) => (prev ? null : prev));
+          setPortfolioMedia((prev) => (prev.length === 0 ? prev : []));
         }
       } catch (err) {
         if (isMounted) {
@@ -396,7 +424,7 @@ function HomePage() {
   // load media for the selected portfolio
   useEffect(() => {
     if (!selectedPortfolio) {
-      setPortfolioMedia([]);
+      setPortfolioMedia((prev) => (prev.length === 0 ? prev : []));
       return;
     }
 
@@ -479,6 +507,68 @@ function HomePage() {
   }, [isOwnProfile]);
 
   useEffect(() => {
+    if (!isOwnProfile || !profile?.username) {
+      setSelectedAudienceUsers((prev) => (prev.length === 0 ? prev : []));
+      setAudienceQuery((prev) => (prev === "" ? prev : ""));
+      setAudienceSearchResults((prev) => (prev.length === 0 ? prev : []));
+      setAudienceSearchLoading((prev) => (prev ? false : prev));
+      return;
+    }
+
+    if (postVisibility !== "SELECTED_USERS") {
+      setAudienceSearchResults((prev) => (prev.length === 0 ? prev : []));
+      setAudienceSearchLoading((prev) => (prev ? false : prev));
+      return;
+    }
+
+    const trimmedQuery = audienceQuery.trim();
+    if (!trimmedQuery) {
+      setAudienceSearchResults((prev) => (prev.length === 0 ? prev : []));
+      setAudienceSearchLoading((prev) => (prev ? false : prev));
+      return;
+    }
+
+    let active = true;
+    const timer = globalThis.setTimeout(async () => {
+      setAudienceSearchLoading(true);
+      try {
+        const response = await searchFollowers(profile.username, trimmedQuery, 0, 12);
+        if (!active) return;
+        const selectedIds = new Set(selectedAudienceUsers.map((item) => item.userId));
+        setAudienceSearchResults(response.items.filter((item) => !selectedIds.has(item.userId)));
+      } catch {
+        if (active) {
+          setAudienceSearchResults([]);
+        }
+      } finally {
+        if (active) {
+          setAudienceSearchLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      globalThis.clearTimeout(timer);
+    };
+  }, [audienceQuery, isOwnProfile, postVisibility, profile?.username, selectedAudienceUsers]);
+
+  const addSelectedAudienceUser = (user: FollowUserItem) => {
+    setSelectedAudienceUsers((prev) => {
+      if (prev.some((item) => item.userId === user.userId)) {
+        return prev;
+      }
+      return [...prev, user];
+    });
+    setAudienceQuery("");
+    setAudienceSearchResults([]);
+  };
+
+  const removeSelectedAudienceUser = (userId: string) => {
+    setSelectedAudienceUsers((prev) => prev.filter((item) => item.userId !== userId));
+  };
+
+  useEffect(() => {
     if (!isOwnProfile) {
       return;
     }
@@ -506,6 +596,12 @@ function HomePage() {
       return;
     }
 
+    if (postVisibility === "SELECTED_USERS" && selectedAudienceUsers.length === 0) {
+      setComposerError("Please select at least one follower for selected audience.");
+      setComposerSuccess(null);
+      return;
+    }
+
     setComposerBusy(true);
     setComposerError(null);
     setComposerSuccess(null);
@@ -516,11 +612,17 @@ function HomePage() {
         caption: caption.trim(),
         tags: parseTags(tagInput),
         mediaFiles: optimizedFiles,
+        visibility: postVisibility,
+        allowedViewerUserIds: selectedAudienceUsers.map((item) => item.userId),
       });
       setCaption("");
       setTagInput("");
       setMediaFiles([]);
       setMediaPreviews([]);
+      setPostVisibility("PUBLIC");
+      setSelectedAudienceUsers([]);
+      setAudienceQuery("");
+      setAudienceSearchResults([]);
       setComposerSuccess("Post published.");
       await loadPosts(0, true);
     } catch (error) {
@@ -1019,6 +1121,85 @@ function HomePage() {
                     <span>{mediaFiles.length ? `${mediaFiles.length} files` : "Add media"}</span>
                   </label>
                 </div>
+
+                <div className="profile-composer__audience">
+                  <label htmlFor="post-visibility" className="profile-composer__audience-label">
+                    Who can view this post?
+                  </label>
+                  <select
+                    id="post-visibility"
+                    value={postVisibility}
+                    onChange={(event) => setPostVisibility(event.target.value as PostVisibility)}
+                  >
+                    {POST_AUDIENCE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+
+                  {postVisibility === "SELECTED_USERS" ? (
+                    <div className="profile-composer__audience-list">
+                      <div className="profile-composer__audience-selected">
+                        {selectedAudienceUsers.map((item) => (
+                          <div key={item.userId} className="profile-composer__audience-chip">
+                            <div className="profile-composer__audience-avatar" aria-hidden="true">
+                              {item.avatarUrl ? (
+                                <img src={item.avatarUrl} alt={item.displayName || item.username} />
+                              ) : (
+                                <span>{(item.displayName || item.username || "U").charAt(0).toUpperCase()}</span>
+                              )}
+                            </div>
+                            <span>{item.displayName || item.username}</span>
+                            <button
+                              type="button"
+                              className="profile-composer__audience-remove"
+                              aria-label={`Remove ${item.displayName || item.username}`}
+                              onClick={() => removeSelectedAudienceUser(item.userId)}
+                            >
+                              x
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      <input
+                        value={audienceQuery}
+                        onChange={(event) => setAudienceQuery(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                          }
+                        }}
+                        placeholder="Search follower by display name or username"
+                        className="profile-composer__audience-search"
+                      />
+
+                      {audienceSearchLoading ? <p>Searching followers...</p> : null}
+                      {!audienceSearchLoading && audienceQuery.trim() && audienceSearchResults.length === 0 ? (
+                        <p>No matching followers found.</p>
+                      ) : null}
+                      {audienceSearchLoading ? null : audienceSearchResults.map((item) => (
+                        <button
+                          key={item.userId}
+                          type="button"
+                          className="profile-composer__audience-result"
+                          onClick={() => addSelectedAudienceUser(item)}
+                        >
+                          <div className="profile-composer__audience-avatar" aria-hidden="true">
+                            {item.avatarUrl ? (
+                              <img src={item.avatarUrl} alt={item.displayName || item.username} />
+                            ) : (
+                              <span>{(item.displayName || item.username || "U").charAt(0).toUpperCase()}</span>
+                            )}
+                          </div>
+                          <div>
+                            <strong>{item.displayName || item.username}</strong>
+                            <small>@{item.username}</small>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
                 {mediaPreviews.length ? (
                   <div className="profile-composer__preview">
                     {mediaPreviews.map((preview, index) => (
@@ -1065,7 +1246,12 @@ function HomePage() {
                       </div>
                       <div>
                         <h3>{post.displayName}</h3>
-                        <p>@{post.username} • {formatDate(post.createdAt)}</p>
+                        <p>
+                          <span>@{post.username} • {formatDate(post.createdAt)}</span>
+                          {viewerProfile?.username === post.username ? (
+                            <span className="post-visibility-badge">{getPostVisibilityLabel(post)}</span>
+                          ) : null}
+                        </p>
                       </div>
                     </Link>
                     {viewerProfile?.username ? (
@@ -1247,7 +1433,12 @@ function HomePage() {
                       </div>
                       <div>
                         <h3>{post.displayName}</h3>
-                        <p>@{post.username} • {formatDate(post.createdAt)}</p>
+                        <p>
+                          <span>@{post.username} • {formatDate(post.createdAt)}</span>
+                          {viewerProfile?.username === post.username ? (
+                            <span className="post-visibility-badge">{getPostVisibilityLabel(post)}</span>
+                          ) : null}
+                        </p>
                       </div>
                     </Link>
                     {viewerProfile?.username ? (
@@ -1692,7 +1883,12 @@ function HomePage() {
                       </div>
                       <div>
                         <h3>{post.displayName}</h3>
-                        <p>@{post.username} • {formatDate(post.createdAt)}</p>
+                        <p>
+                          <span>@{post.username} • {formatDate(post.createdAt)}</span>
+                          {viewerProfile?.username === post.username ? (
+                            <span className="post-visibility-badge">{getPostVisibilityLabel(post)}</span>
+                          ) : null}
+                        </p>
                       </div>
                     </Link>
                     <div className="post-card__menu">
@@ -1721,8 +1917,8 @@ function HomePage() {
 
                   {post.isRejected ? (
                     <div className="pending-rejected-banner">
-                      <span className="pending-rejected-banner__icon" aria-hidden="true">✕</span>
-                      Rejected by Admin — this post will not be published.
+                      <span className="pending-rejected-banner__icon" aria-hidden="true">x</span>{" "}
+                      Rejected by Admin - this post will not be published.
                     </div>
                   ) : null}
 

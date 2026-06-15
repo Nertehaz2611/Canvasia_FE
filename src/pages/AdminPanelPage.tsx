@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   adminApprovePost,
@@ -19,6 +19,12 @@ import type {
 
 type AdminTab = "users" | "pending" | "reports";
 
+type ChartSegment = {
+  label: string;
+  value: number;
+  color: string;
+};
+
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString();
@@ -29,6 +35,29 @@ function formatReason(reason: string): string {
     .toLowerCase()
     .replaceAll("_", " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function toPercent(value: number, total: number): number {
+  if (total <= 0) return 0;
+  return (value / total) * 100;
+}
+
+function buildDonutGradient(segments: ChartSegment[]): string {
+  const total = segments.reduce((sum, segment) => sum + Math.max(segment.value, 0), 0);
+  if (total <= 0) {
+    return "conic-gradient(rgba(255, 255, 255, 0.12) 0% 100%)";
+  }
+
+  let cursor = 0;
+  const stops = segments
+    .filter((segment) => segment.value > 0)
+    .map((segment) => {
+      const start = cursor;
+      cursor += toPercent(segment.value, total);
+      return `${segment.color} ${start}% ${cursor}%`;
+    });
+
+  return `conic-gradient(${stops.join(", ")})`;
 }
 
 // eslint-disable-next-line sonarjs/cognitive-complexity
@@ -304,6 +333,32 @@ function AdminPanelPage() {
       ]
     : [];
 
+  const engagementSegments: ChartSegment[] = stats
+    ? [
+        { label: "Likes", value: stats.totalLikes, color: "#f7d45b" },
+        { label: "Comments", value: stats.totalComments, color: "#59d2ff" },
+        { label: "Posts", value: stats.totalPosts, color: "#63dd8f" },
+        { label: "Reports", value: stats.totalReports, color: "#ff8a8a" },
+      ]
+    : [];
+
+  const engagementTotal = engagementSegments.reduce((sum, segment) => sum + segment.value, 0);
+  const donutGradient = buildDonutGradient(engagementSegments);
+
+  const volumeMetrics = stats
+    ? [
+        { label: "Users", value: stats.totalUsers },
+        { label: "Posts", value: stats.totalPosts },
+        { label: "Comments", value: stats.totalComments },
+        { label: "Likes", value: stats.totalLikes },
+        { label: "Reports", value: stats.totalReports },
+      ]
+    : [];
+
+  const volumeMax = Math.max(...volumeMetrics.map((metric) => metric.value), 1);
+
+  const growthRate = stats ? toPercent(stats.newUsersLast7Days, Math.max(stats.totalUsers, 1)) : 0;
+
   return (
     <div className="admin-panel">
       <div className="admin-panel__header">
@@ -320,14 +375,75 @@ function AdminPanelPage() {
           <div className="admin-error">{statsError}</div>
         ) : null}
         {!statsLoading && !statsError ? (
-          <div className="admin-stat-grid">
-            {statCards.map((card) => (
-              <div key={card.label} className="admin-stat-card">
-                <span className="admin-stat-card__value">{card.value.toLocaleString()}</span>
-                <span className="admin-stat-card__label">{card.label}</span>
-              </div>
-            ))}
-          </div>
+          <>
+            <div className="admin-stat-grid">
+              {statCards.map((card) => (
+                <div key={card.label} className="admin-stat-card">
+                  <span className="admin-stat-card__value">{card.value.toLocaleString()}</span>
+                  <span className="admin-stat-card__label">{card.label}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="admin-chart-grid">
+              <article className="admin-chart-card">
+                <h3 className="admin-chart-card__title">Engagement Mix</h3>
+                <div className="admin-chart-card__body admin-chart-card__body--donut">
+                  <div className="admin-donut" style={{ "--admin-donut-bg": donutGradient } as CSSProperties}>
+                    <span>{engagementTotal.toLocaleString()}</span>
+                    <small>actions</small>
+                  </div>
+                  <div className="admin-chart-legend">
+                    {engagementSegments.map((segment) => (
+                      <div key={segment.label} className="admin-chart-legend__item">
+                        <span
+                          className="admin-chart-legend__dot"
+                          style={{ "--admin-dot-color": segment.color } as CSSProperties}
+                          aria-hidden="true"
+                        />
+                        <span className="admin-chart-legend__label">{segment.label}</span>
+                        <span className="admin-chart-legend__value">{segment.value.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </article>
+
+              <article className="admin-chart-card">
+                <h3 className="admin-chart-card__title">Platform Volume</h3>
+                <div className="admin-chart-card__body admin-chart-card__body--bars">
+                  {volumeMetrics.map((metric) => (
+                    <div key={metric.label} className="admin-bar-row">
+                      <span className="admin-bar-row__label">{metric.label}</span>
+                      <div className="admin-bar-row__track">
+                        <span
+                          className="admin-bar-row__fill"
+                          style={{ "--admin-bar-width": `${toPercent(metric.value, volumeMax)}%` } as CSSProperties}
+                        />
+                      </div>
+                      <span className="admin-bar-row__value">{metric.value.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+
+              <article className="admin-chart-card admin-chart-card--growth">
+                <h3 className="admin-chart-card__title">User Growth (7 Days)</h3>
+                <div className="admin-chart-card__body">
+                  <p className="admin-growth-copy">
+                    <strong>{stats?.newUsersLast7Days.toLocaleString() ?? 0}</strong> users joined this week.
+                  </p>
+                  <div className="admin-growth-meter" role="img" aria-label="Weekly user growth rate">
+                    <span
+                      className="admin-growth-meter__fill"
+                      style={{ "--admin-growth-width": `${Math.min(growthRate, 100)}%` } as CSSProperties}
+                    />
+                  </div>
+                  <p className="admin-growth-rate">{growthRate.toFixed(1)}% of total users</p>
+                </div>
+              </article>
+            </div>
+          </>
         ) : null}
       </section>
 

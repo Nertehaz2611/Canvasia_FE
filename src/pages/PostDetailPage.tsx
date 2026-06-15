@@ -113,7 +113,21 @@ function resolveInitialMediaIndex(state: PostDetailState | null, postData: Post 
   return 0;
 }
 
-function usePostDetail(postId: string | undefined, state: PostDetailState | null): PostDetailModel {
+function getPostVisibilityLabel(post: Post): string {
+  switch (post.visibility) {
+    case "FOLLOWERS":
+      return "Followers only";
+    case "SELECTED_USERS":
+      return `Selected users (${post.allowedViewers.length})`;
+    case "ONLY_ME":
+      return "Only me";
+    case "PUBLIC":
+    default:
+      return "All";
+  }
+}
+
+function usePostDetail(postId: string | undefined, state: PostDetailState | null, locationKey: string): PostDetailModel {
   const [postData, setPostData] = useState<Post | null>(state?.post ?? null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -137,7 +151,7 @@ function usePostDetail(postId: string | undefined, state: PostDetailState | null
     setCommentDrafts({});
     setReplyDrafts({});
     setActiveReplyId(null);
-  }, [postId, state?.post]);
+  }, [postId, locationKey]);
 
   useEffect(() => {
     let isMounted = true;
@@ -882,6 +896,8 @@ function PostDetailInfo({
   onToggleSave,
   onReport,
 }: Readonly<PostDetailInfoProps>) {
+  const isOwner = !!currentUsername && postOwnerUsername === currentUsername;
+
   const closeActionMenu = (event: MouseEvent<HTMLButtonElement>) => {
     const details = event.currentTarget.closest("details");
     if (details) {
@@ -908,7 +924,14 @@ function PostDetailInfo({
               </div>
               <div>
                 <h3>{displayName}</h3>
-                <p>@{username} • {createdAt}</p>
+                <p>
+                  <span>@{username} • {createdAt}</span>
+                  {isOwner ? (
+                    <span className="post-visibility-badge post-visibility-badge--detail">
+                      {getPostVisibilityLabel(postData)}
+                    </span>
+                  ) : null}
+                </p>
               </div>
             </Link>
             {canEdit || canSave || canReport ? (
@@ -1138,7 +1161,7 @@ function PostDetailPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const state = (location.state as PostDetailState | null) ?? null;
-  const model = usePostDetail(postId, state);
+  const model = usePostDetail(postId, state, location.key);
   const [editOpen, setEditOpen] = useState(false);
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
