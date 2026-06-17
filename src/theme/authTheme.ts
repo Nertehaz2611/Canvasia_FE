@@ -14,6 +14,14 @@ export const authInputSx: SxProps<Theme> = {
   "& .MuiOutlinedInput-root": {
     borderRadius: 1.2,
     backgroundColor: "rgba(255, 255, 255, 0.6)",
+    "& .MuiOutlinedInput-input": {
+      color: "var(--color-text-primary)",
+      fontWeight: 600,
+    },
+    "& .MuiOutlinedInput-input::placeholder": {
+      color: "var(--color-text-muted)",
+      opacity: 0.7,
+    },
     "& input:-webkit-autofill, & input:-webkit-autofill:hover, & input:-webkit-autofill:focus": {
       WebkitTextFillColor: "var(--color-text-primary)",
       WebkitBoxShadow: "0 0 0 1000px rgba(255, 255, 255, 0.6) inset",
@@ -39,7 +47,11 @@ export const primaryButtonSx: SxProps<Theme> = {
   py: 1.2,
   borderRadius: "var(--radius-pill)",
   bgcolor: "#111111",
-  "&:hover": { bgcolor: "#000000" },
+  color: "#ffffff",
+  "&:hover": { 
+    bgcolor: "#000000",
+    color: "#ffffff",
+  },
 };
 
 export const outlineButtonSx: SxProps<Theme> = {
@@ -53,6 +65,7 @@ export const outlineButtonSx: SxProps<Theme> = {
   "&:hover": {
     borderColor: "rgba(17, 24, 12, 0.48)",
     bgcolor: "#edf1e8",
+    color: "#1d2519",
   },
 };
 

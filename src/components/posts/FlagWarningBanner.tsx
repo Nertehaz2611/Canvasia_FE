@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import type { Post } from "../../types/social";
 
 type FlagWarningBannerProps = {
@@ -6,23 +5,14 @@ type FlagWarningBannerProps = {
 };
 
 function FlagWarningBanner({ post }: Readonly<FlagWarningBannerProps>) {
-  if (!post.isPending || !post.flaggedMatchedAuthorDisplayName) {
+  if (!post.isPending) {
     return null;
   }
 
   return (
     <p className="flag-warning" role="alert">
       <span className="flag-warning__icon" aria-hidden="true">⚠</span>
-      {" "}Suspicion arises that this post contains stolen/traced artworks from{" "}
-      <strong className="flag-warning__name">{post.flaggedMatchedAuthorDisplayName}</strong>{"'s "}
-      {post.flaggedMatchedPostId ? (
-        <Link to={`/posts/${post.flaggedMatchedPostId}`} className="flag-warning__link">
-          post
-        </Link>
-      ) : (
-        "post"
-      )}
-      .
+      {" "}This post is suspected of copyright infringement.
     </p>
   );
 }

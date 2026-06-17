@@ -10,6 +10,7 @@ import {
   getAdminUsers,
 } from "../services/socialService";
 import { getErrorMessage } from "../utils/errorMessage";
+import { AdminOwnershipVerificationPanel } from "./AdminOwnershipVerificationPanel";
 import type {
   AdminPendingPostItem,
   AdminReportedPostItem,
@@ -17,7 +18,7 @@ import type {
   AdminUserItem,
 } from "../types/social";
 
-type AdminTab = "users" | "pending" | "reports";
+type AdminTab = "users" | "pending" | "reports" | "ownership-verifications";
 
 type ChartSegment = {
   label: string;
@@ -450,7 +451,7 @@ function AdminPanelPage() {
       {/* Tabs */}
       <section className="admin-tabs-section">
         <div className="admin-tabs">
-          {(["users", "pending", "reports"] as AdminTab[]).map((tab) => (
+          {(["users", "pending", "reports", "ownership-verifications"] as AdminTab[]).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -460,6 +461,7 @@ function AdminPanelPage() {
               {tab === "users" && "Users"}
               {tab === "pending" && "Pending Posts"}
               {tab === "reports" && "Reports"}
+              {tab === "ownership-verifications" && "Ownership Verifications"}
             </button>
           ))}
         </div>
@@ -543,18 +545,47 @@ function AdminPanelPage() {
 
                   {post.flaggedMatchedAuthorDisplayName ? (
                     <div className="flag-warning">
-                      <span className="flag-warning__icon" aria-hidden="true">⚠️ </span>
+                      <span className="flag-warning__icon" aria-hidden="true">
+                        ⚠️
+                      </span>
+                      {" "}
                       Flagged: may contain stolen/traced artwork from{" "}
-                      <span className="flag-warning__name">{post.flaggedMatchedAuthorDisplayName}</span>{"'s "}
+                      <span className="flag-warning__name">{post.flaggedMatchedAuthorDisplayName}</span>
+                      {"'s "}
                       {post.flaggedMatchedPostId ? (
                         <Link to={`/posts/${post.flaggedMatchedPostId}`} className="flag-warning__link">
                           post
                         </Link>
                       ) : (
-                        "post"
-                      )}.
+                        <button
+                          type="button"
+                          className="flag-warning__link"
+                          onClick={() => setActiveTab("ownership-verifications")}
+                          style={{ background: "none", border: 0, padding: 0, cursor: "pointer" }}
+                        >
+                          registered artwork
+                        </button>
+                      )}
+                      .
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="flag-warning">
+                      <span className="flag-warning__icon" aria-hidden="true">
+                        ⚠️
+                      </span>
+                      {" "}
+                      Flagged: suspected copyright infringement.
+                      {" "}
+                      <button
+                        type="button"
+                        className="flag-warning__link"
+                        onClick={() => setActiveTab("ownership-verifications")}
+                        style={{ background: "none", border: 0, padding: 0, cursor: "pointer" }}
+                      >
+                        Open copyright library.
+                      </button>
+                    </div>
+                  )}
 
                   {post.media && post.media.length > 0 ? (
                     <Link
@@ -724,6 +755,11 @@ function AdminPanelPage() {
               </div>
             ) : null}
           </div>
+        ) : null}
+
+        {/* Ownership Verifications Tab */}
+        {activeTab === "ownership-verifications" ? (
+          <AdminOwnershipVerificationPanel />
         ) : null}
       </section>
 
