@@ -10,6 +10,8 @@ import ReportPostDialog from "../components/posts/ReportPostDialog";
 import { getErrorMessage } from "../utils/errorMessage";
 import type { LatestDiscussionItem, Post, UpdatePostInput } from "../types/social";
 
+const isVisibleOutsidePending = (post: Post): boolean => !post.isPending && !post.isRejected;
+
 function formatDate(iso: string): string {
   const parsedDate = new Date(iso);
   return Number.isNaN(parsedDate.getTime()) ? iso : parsedDate.toLocaleDateString();
@@ -88,10 +90,12 @@ function PostsPage() {
     setError(null);
 
     try {
+      const targetCursor = replace ? undefined : cursor;
       const response = searchQuery
-        ? await getSearchPosts(10, replace ? undefined : cursor, searchQuery)
-        : await getDiscoverPosts(10, replace ? undefined : cursor);
-      setPosts((prev) => (replace ? response.items : [...prev, ...response.items]));
+        ? await getSearchPosts(10, targetCursor, searchQuery)
+        : await getDiscoverPosts(10, targetCursor);
+      const visibleItems = response.items.filter(isVisibleOutsidePending);
+      setPosts((prev) => (replace ? visibleItems : [...prev, ...visibleItems]));
       setCursor(response.nextCursor);
       setHasNext(response.hasNext);
     } catch (loadError) {

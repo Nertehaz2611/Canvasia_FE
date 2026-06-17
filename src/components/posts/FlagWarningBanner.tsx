@@ -6,6 +6,15 @@ type FlagWarningBannerProps = {
 };
 
 function FlagWarningBanner({ post }: Readonly<FlagWarningBannerProps>) {
+  if (post.isRejected) {
+    return (
+      <p className="pending-rejected-banner" role="alert">
+        <span className="pending-rejected-banner__icon" aria-hidden="true">x</span>{" "}
+        Rejected by Admin - this post will not be published.
+      </p>
+    );
+  }
+
   if (!post.isPending) {
     return null;
   }

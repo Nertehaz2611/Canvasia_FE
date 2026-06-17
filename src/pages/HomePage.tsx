@@ -54,6 +54,8 @@ type HomeTab = "posts" | "saved" | "media" | "portfolio" | "pending";
 
 const DEFAULT_PAGE_SIZE = 6;
 
+const isVisibleOutsidePending = (post: Post): boolean => !post.isPending && !post.isRejected;
+
 function formatDate(iso: string): string {
   const parsedDate = new Date(iso);
   return Number.isNaN(parsedDate.getTime()) ? iso : parsedDate.toLocaleDateString();
@@ -279,7 +281,8 @@ function HomePage() {
 
     try {
       const response = await getUserPosts(profile.username, targetPage, DEFAULT_PAGE_SIZE);
-      setPosts((prev) => (replace ? response.items : [...prev, ...response.items]));
+      const visibleItems = response.items.filter(isVisibleOutsidePending);
+      setPosts((prev) => (replace ? visibleItems : [...prev, ...visibleItems]));
       setPage(response.page);
       setHasNext(response.hasNext);
     } catch (error) {
@@ -688,7 +691,8 @@ function HomePage() {
     setSavedError(null);
     try {
       const response = await getSavedPosts(pageNum, DEFAULT_PAGE_SIZE);
-      setSavedPosts((prev) => replace ? response.items : [...prev, ...response.items]);
+      const visibleItems = response.items.filter(isVisibleOutsidePending);
+      setSavedPosts((prev) => replace ? visibleItems : [...prev, ...visibleItems]);
       setSavedPage(pageNum);
       setSavedHasNext(response.hasNext);
     } catch (error) {
@@ -1914,13 +1918,6 @@ function HomePage() {
                   </div>
 
                   {post.caption ? <p className="post-card__caption">{post.caption}</p> : null}
-
-                  {post.isRejected ? (
-                    <div className="pending-rejected-banner">
-                      <span className="pending-rejected-banner__icon" aria-hidden="true">x</span>{" "}
-                      Rejected by Admin - this post will not be published.
-                    </div>
-                  ) : null}
 
                   <FlagWarningBanner post={post} />
 
