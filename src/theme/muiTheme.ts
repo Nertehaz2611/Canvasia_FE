@@ -137,9 +137,11 @@ export const muiTheme = createTheme({
           borderColor: "rgba(255, 255, 255, 0.12)",
           color: "#e5e9f3",
         },
-        standardInfo: {
-          backgroundColor: "rgba(102, 141, 179, 0.15)",
-          borderColor: "rgba(102, 141, 179, 0.35)",
+        standard: {
+          "&.MuiAlert-standardInfo": {
+            backgroundColor: "rgba(102, 141, 179, 0.15)",
+            borderColor: "rgba(102, 141, 179, 0.35)",
+          },
         },
       },
     },
